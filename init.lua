@@ -26,6 +26,9 @@
 -- end
 --end)
 
+
+
+
 -- App vars
 local browser   = hs.appfinder.appFromName("Google Chrome")
 local iterm     = hs.appfinder.appFromName("iTerm2")
@@ -33,6 +36,9 @@ local subl      = hs.appfinder.appFromName("Sublime Text")
 local phpstorm  = hs.appfinder.appFromName("PhpStorm")
 local finder    = hs.appfinder.appFromName("Finder")
 local slack     = hs.appfinder.appFromName("Slack")
+
+local main_monitor = "Color LCD"
+local second_monitor = "LG ULTRAWIDE"
 
 -------------------------------------------------------------------------------
 -- real configuration
