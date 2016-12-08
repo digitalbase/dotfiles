@@ -127,6 +127,17 @@ hs.hotkey.bind(mash, "f", function() push(0.05,0.05,0.9,0.9) end)
 hs.hotkey.bind(mash, "pad8", function() applyLayouts(layout_code) end)
 hs.hotkey.bind(mash, "pad2", function() applyLayouts(layout_comms) end)
 
+hs.hotkey.bind(mash, "d", function()
+  --for win in hs.window.allWindows() do
+  for _, win in ipairs(hs.window.allWindows()) do
+    if win then
+      win:minimize()
+    else
+      print("Found a nil window for: "..win:application():name())
+    end
+  end 
+end)
+
 -------------------------------------------------------------------------------
 -- reload configuration
 -------------------------------------------------------------------------------
@@ -142,7 +153,7 @@ hs.fnutils.each({
   { key = "c", app = "Google Chrome" },
   { key = "s", app = "slack" },
   { key = "p", app = "PhpStorm" },
-  { key = "i", app = "iTerm" },
+  { key = "t", app = "iTerm2" },
   { key = "m", app = "Mailplane 3" }
 }, function(object)
     hs.hotkey.bind(mash_apps, object.key, function() ext.app.forceLaunchOrFocus(object.app) end) 
