@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Make sure we’re using the latest Homebrew.
 brew update
 
@@ -6,13 +8,11 @@ brew upgrade
 
 brew install gh
 brew install git
+brew install httpie
 
 # Install GNU core utilities (those that come with macOS are outdated).
 # Don’t forget to add `$(brew --prefix coreutils)/libexec/gnubin` to `$PATH`.
 brew install coreutils
-
-# Install `wget` with IRI support.
-brew install wget --with-iri
 
 # Install GnuPG to enable PGP-signing commits.
 brew install gnupg

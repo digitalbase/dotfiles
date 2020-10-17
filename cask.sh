@@ -26,6 +26,8 @@ brew cask install vlc
 brew cask install spotify
 brew cask install appcleaner
 brew cask install whatsapp
+brew cask install twitter
+brew cask install figma
 
 # Dev stuff
 brew cask install visual-studio-code
