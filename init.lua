@@ -43,10 +43,10 @@
 -- App vars
 local browser   = hs.appfinder.appFromName("Google Chrome")
 local iterm     = hs.appfinder.appFromName("iTerm2")
-local subl      = hs.appfinder.appFromName("Sublime Text")
 local phpstorm  = hs.appfinder.appFromName("PhpStorm")
 local finder    = hs.appfinder.appFromName("Finder")
 local slack     = hs.appfinder.appFromName("Slack")
+local code      = hs.appfinder.appFromName("Visual Studio Code")
 
 -- Screens
 local main_monitor = "Color LCD"
@@ -149,14 +149,13 @@ end)
 
 -- launch and focus applications with below shortkey
 hs.fnutils.each({
-  { key = "f", app = "Fantastical" },
-  { key = "c", app = "Google Chrome" },
+  { key = "b", app = "Safari" },
+  { key = "c", app = "Visual Studio Code" },
   { key = "s", app = "slack" },
   { key = "p", app = "PhpStorm" },
-  { key = "t", app = "iTerm2" },
-  { key = "m", app = "Mailplane 3" }
+  { key = "t", app = "iTerm" }
 }, function(object)
-    hs.hotkey.bind(mash_apps, object.key, function() ext.app.forceLaunchOrFocus(object.app) end) 
+    hs.hotkey.bind(mash, object.key, function() ext.app.forceLaunchOrFocus(object.app) end) 
 end)
 
 -- functions below
