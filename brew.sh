@@ -36,5 +36,9 @@ brew install ssh-copy-id
 brew install tree
 brew install htop
 
+# Kubernetes stuff
+brew install kubernetes-cli
+brew install krew
+
 # Remove outdated versions from the cellar.
 brew cleanup
