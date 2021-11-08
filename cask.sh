@@ -38,3 +38,13 @@ brew cask install visual-studio-code
 brew cask install phpstorm
 brew cask install iterm2
 brew cask install postman
+
+# Fonts (coding)
+brew tap homebrew/cask-fonts
+brew cask install font-inconsolata
+brew cask install font-inconsolata-dz-for-powerline
+brew cask install font-inconsolata-for-powerline-bold
+brew cask install font-inconsolata-for-powerline
+brew cask install font-inconsolata-g-for-powerline
+brew cask install font-inconsolata-g
+
