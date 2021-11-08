@@ -48,3 +48,19 @@ brew cask install font-inconsolata-for-powerline
 brew cask install font-inconsolata-g-for-powerline
 brew cask install font-inconsolata-g
 
+###############################################################################
+# Mac App Store Apps                                                          #
+###############################################################################
+
+# Command line interface for the Mac App Store
+# This command will not allow you to install an app for the first time: it must
+# already be in the Purchased tab of the App Store.
+brew install mas
+
+mas install 409201541	# install Pages
+mas install 409203825	# install Numbers
+mas install 409183694	# install Keynote
+mas install 1482454543	# install Twitter
+mas install 1091189122	# install Bear
+
+brew cleanup
