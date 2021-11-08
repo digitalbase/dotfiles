@@ -13,7 +13,6 @@ brew tap caskroom/cask
 brew cask install bartender
 brew cask install viscosity
 brew cask install iterm2
-brew cask install hammerspoon
 
 # Used utilities
 brew cask install google-chrome
@@ -28,9 +27,14 @@ brew cask install appcleaner
 brew cask install whatsapp
 brew cask install twitter
 brew cask install figma
+brew cask install notion
+brew cask install steam
+brew cask install linear-linear
+# https://www.macsparky.com/blog/2021/2/hyper-key-via-bettertouchtool instead of karabiner
+brew cask install bettertouchtool
 
 # Dev stuff
 brew cask install visual-studio-code
 brew cask install phpstorm
 brew cask install iterm2
-brew cask install paw
+brew cask install postman
