@@ -35,6 +35,7 @@ brew install rename
 brew install ssh-copy-id
 brew install tree
 brew install htop
+brew install telnet
 
 # Kubernetes stuff
 brew install kubernetes-cli
