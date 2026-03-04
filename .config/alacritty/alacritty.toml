@@ -1,0 +1,124 @@
+general.import = [
+  # uncomment the flavour you want below:
+  #"~/.config/alacritty/catppuccin-latte.toml"
+  # "~/.config/alacritty/catppuccin-frappe.toml"
+   "~/.config/alacritty/catppuccin-macchiato.toml"
+  # "~/.config/alacritty/catppuccin-mocha.toml"
+]
+
+window.decorations = "None"
+window.dimensions = { columns = 120, lines = 34 }
+window.padding = { x = 10, y = 10 }
+
+[font]
+size = 19.0
+
+[font.normal]
+family = "Inconsolata Nerd Font Mono"
+style = "Regular"
+
+[env]
+TERM = "xterm-256color"
+
+[selection]
+save_to_clipboard = false
+
+[terminal]
+osc52 = "OnlyCopy"
+
+[hints]
+alphabet = "jfkdls;ahgurieowpq"
+
+[[hints.enabled]]
+command = "open"
+hyperlinks = true
+post_processing = true
+persist = false
+mouse = { enabled = true, mods = "None" }
+binding = { key = "U", mods = "Command" }
+regex = "(ipfs:|ipns:|magnet:|mailto:|gemini://|gopher://|https://|http://|news:|file://|git://|ssh:|ftp://)[^\\s<{\\[\\]>\"`]+"
+
+[[keyboard.bindings]]
+chars = "\u00131" # C-s 1
+key = "Key1"
+mods = "Command"
+
+[[keyboard.bindings]]
+chars = "\u00132" # C-s 2
+key = "Key2"
+mods = "Command"
+
+[[keyboard.bindings]]
+chars = "\u00133" # C-s 3
+key = "Key3"
+mods = "Command"
+
+[[keyboard.bindings]]
+chars = "\u00134" # C-s 4
+key = "Key4"
+mods = "Command"
+
+[[keyboard.bindings]]
+chars = "\u00135" # C-s 5
+key = "Key5"
+mods = "Command"
+
+[[keyboard.bindings]]
+chars = "\u00136" # C-s 6
+key = "Key6"
+mods = "Command"
+
+[[keyboard.bindings]]
+chars = "\u00137" # C-s 7
+key = "Key7"
+mods = "Command"
+
+[[keyboard.bindings]]
+chars = "\u00138" # C-s 8
+key = "Key8"
+mods = "Command"
+
+[[keyboard.bindings]]
+chars = "\u00139" # C-s 9
+key = "Key9"
+mods = "Command"
+
+[[keyboard.bindings]]
+chars = "\u0013\u001b[A" # C-s Up
+key = "Up"
+mods = "Command"
+
+[[keyboard.bindings]]
+chars = "\u0013\u001b[B" # C-s Down
+key = "Down"
+mods = "Command"
+
+[[keyboard.bindings]]
+chars = "\u0013\u001b[D" # C-s Left
+key = "Left"
+mods = "Command"
+
+[[keyboard.bindings]]
+chars = "\u0013\u001b[C" # C-s Right
+key = "Right"
+mods = "Command"
+
+[[keyboard.bindings]]
+chars = "\u0013:new-session\r" # C-s :new-session Enter
+key = "N"
+mods = "Command"
+
+[[keyboard.bindings]]
+action = "CreateNewWindow"
+key = "N"
+mods = "Command|Shift"
+
+[[keyboard.bindings]]
+chars = "\u0013a" # C-s a (prefix + session switcher)
+key = "S"
+mods = "Command"
+
+[[keyboard.bindings]]
+chars = "\u001b[13;2u" # Shift+Enter (CSI-u)
+key = "Return"
+mods = "Shift"
