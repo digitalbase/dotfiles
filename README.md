@@ -9,6 +9,7 @@
 - `.config/alacritty/alacritty.toml`
 - `.config/alacritty/catppuccin-macchiato.toml`
 - `.config/starship.toml`
+- `.tmux-tools/*` helper scripts
 
 ## Install on a new machine
 
@@ -20,4 +21,4 @@ git clone https://github.com/digitalbase/dotfiles.git ~/dotfiles
 ## Notes
 
 - This repo tracks terminal and shell configs only.
-- Clone `~/.tmux-tools` separately since it is a standalone repo.
+- `install.sh` copies bundled `.tmux-tools` scripts to `~/.tmux-tools`.

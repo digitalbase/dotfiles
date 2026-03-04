@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+#
+# Create or switch to a tmux session from zoxide directories
+#
+# Uses fzf to filter zoxide directories, then creates a new session
+# in that directory (or switches to it if it already exists).
+#
+# Usage:
+#   Bind to a key in tmux.conf:
+#     bind C-o display-popup -E "tmux-zoxide-session"
+#
+# Requirements: fzf, zoxide
+
+dir=$(zoxide query -l | fzf --reverse)
+
+if [[ -z "$dir" ]]; then
+	exit 0
+fi
+
+session_name=$(basename "$dir" | tr '.' '_')
+
+if tmux has-session -t "=$session_name" 2>/dev/null; then
+	tmux switch-client -t "$session_name"
+else
+	tmux new-session -d -s "$session_name" -c "$dir"
+	tmux switch-client -t "$session_name"
+fi

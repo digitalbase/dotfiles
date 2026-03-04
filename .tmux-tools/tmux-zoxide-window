@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+#
+# Pick a directory from zoxide and open it in a new tmux window
+#
+# Usage:
+#   bind C-o display-popup -E "tmux-zoxide-window"
+#
+# Requirements: fzf, zoxide
+
+dir=$(zoxide query -l | fzf)
+
+if [[ -n "$dir" ]]; then
+	tmux new-window -c "$dir" -n "$(basename "$dir")"
+fi

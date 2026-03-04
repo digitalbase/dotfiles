@@ -1,0 +1,282 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+_select_zoxide_dir() {
+	if ! command -v zoxide >/dev/null 2>&1; then
+		echo "Error: Required command 'zoxide' not found. Please install it." >&2
+		exit 1
+	fi
+
+	local zoxide_preview_cmd='ls -ap --color=always {}'
+	if command -v tree >/dev/null 2>&1; then
+		# Use tree for a richer preview if available
+		zoxide_preview_cmd='tree -C {} | head -n 30'
+	fi
+
+	# Use fzf to select directories from zoxide's list.
+	# The '|| true' prevents the script from exiting if the user cancels fzf.
+	local dirs
+	dirs=$(zoxide query -l | fzf --multi --reverse --preview "$zoxide_preview_cmd" || true)
+	echo "$dirs"
+}
+
+main() {
+	if [[ -z "${TMUX-}" ]]; then
+		echo "Error: This script must be run inside a tmux session." >&2
+		exit 1
+	fi
+
+	local pane_id
+	local pane_dir
+	local pane_pid
+	pane_id=$(tmux display-message -p '#{pane_id}')
+	pane_dir=$(tmux display-message -p '#{pane_current_path}')
+	pane_pid=$(tmux display-message -p '#{pane_pid}')
+
+	# --- Argument Parsing ---
+	local use_git_root=false
+	local use_zoxide=false
+	local dir_only=false
+	local select_directories=false
+	local path_arg=""
+
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			--git-root|-g)
+				use_git_root=true
+				shift
+				;;
+			--zoxide)
+				use_zoxide=true
+				shift
+				;;
+			--dir-only)
+				dir_only=true
+				shift
+				;;
+			--directories|-d)
+				select_directories=true
+				shift
+				;;
+			-*)
+				echo "Error: Unknown option '$1'" >&2
+				exit 1
+				;;
+			*)
+				if [[ -n "$path_arg" ]]; then
+					echo "Error: Only one path argument is allowed." >&2
+					exit 1
+				fi
+				path_arg="$1"
+				shift
+				;;
+		esac
+	done
+
+	# Check for conflicting arguments
+	if $use_zoxide && [[ -n "$path_arg" ]]; then
+		echo "Error: The --zoxide flag cannot be used with a path argument." >&2
+		exit 1
+	fi
+
+	if $dir_only && ! $use_zoxide; then
+		echo "Error: The --dir-only flag can only be used with --zoxide." >&2
+		exit 1
+	fi
+
+	local search_dirs=()
+
+	if $use_zoxide; then
+		local zoxide_output
+		zoxide_output=$(_select_zoxide_dir)
+		# Exit gracefully if no directory was selected from fzf
+		if [[ -z "$zoxide_output" ]]; then
+			exit 0
+		fi
+		# Split multiline output into array
+		while IFS= read -r line; do
+			[[ -n "$line" ]] && search_dirs+=("$line")
+		done <<< "$zoxide_output"
+	else
+		local search_dir="${path_arg:-$pane_dir}"
+
+		# Convert to absolute path if relative
+		if [[ ! "$search_dir" = /* ]]; then
+			search_dir="$pane_dir/$search_dir"
+		fi
+
+		# Use realpath to resolve ".." and "." components and get a canonical path
+		local realpath_cmd="realpath"
+		[[ "$OSTYPE" == "darwin"* ]] && realpath_cmd="grealpath"
+
+		if command -v "$realpath_cmd" >/dev/null 2>&1; then
+			search_dir=$("$realpath_cmd" -m "$search_dir")
+		fi
+		search_dirs=("$search_dir")
+	fi
+
+	# Verify all directories exist
+	for dir in "${search_dirs[@]}"; do
+		if [[ ! -d "$dir" ]]; then
+			echo "Error: Directory '$dir' does not exist." >&2
+			exit 1
+		fi
+	done
+
+	# --- Mode Detection ---
+	local at_prefix_mode=false
+	if pgrep -P "$pane_pid" -f ".*claude.*|node.*gemini|codex" >/dev/null; then
+		at_prefix_mode=true
+	fi
+
+	local git_root
+	git_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+	if $use_git_root && [[ -z "$git_root" ]]; then
+		echo "Error: --git-root flag used, but not inside a git repository." >&2
+		exit 1
+	fi
+
+	# If --dir-only is set, just output the directory paths and exit
+	if $dir_only; then
+		local output_str=""
+		if $at_prefix_mode; then
+			printf -v output_str "@%s " "${search_dirs[@]}"
+		else
+			local escaped_paths=()
+			for dir in "${search_dirs[@]}"; do
+				local escaped
+				printf -v escaped "%q" "$dir"
+				escaped_paths+=("$escaped")
+			done
+			output_str=$(printf "%s " "${escaped_paths[@]}")
+		fi
+		tmux send-keys -t "$pane_id" "$output_str"
+		exit 0
+	fi
+
+	# --- Command Detection ---
+	local fd_cmd
+	if command -v fd >/dev/null 2>&1; then
+		fd_cmd="fd"
+	elif command -v fdfind >/dev/null 2>&1; then
+		fd_cmd="fdfind"
+	else
+		echo "Error: Required command 'fd' or 'fdfind' not found. Please install it." >&2
+		exit 1
+	fi
+
+	# --- File/Directory Selection ---
+	local fd_flags
+	local preview_cmd
+
+	if $select_directories; then
+		# Directory selection mode
+		fd_flags="${TMUX_FILE_PICKER_FD_FLAGS:--H --follow --type d --exclude .git}"
+
+		if command -v tree >/dev/null 2>&1; then
+			preview_cmd='tree -C {} | head -n 30'
+		else
+			preview_cmd='ls -ap --color=always {}'
+		fi
+	else
+		# File selection mode (default)
+		fd_flags="${TMUX_FILE_PICKER_FD_FLAGS:--H --follow --type f --exclude .git}"
+
+		if command -v bat >/dev/null 2>&1; then
+			preview_cmd="bat --style=numbers --color=always {}"
+		elif command -v batcat >/dev/null 2>&1; then
+			preview_cmd="batcat --style=numbers --color=always {}"
+		else
+			preview_cmd="cat {}"
+		fi
+	fi
+
+	local selected_files_str
+	if [[ ${#search_dirs[@]} -eq 1 ]]; then
+		# Single directory: cd into it for cleaner relative paths in fzf
+		selected_files_str=$(cd "${search_dirs[0]}" && $fd_cmd $fd_flags | fzf --multi --reverse --preview "$preview_cmd" || true)
+	else
+		# Multiple directories: pass them as arguments to fd (returns absolute paths)
+		selected_files_str=$($fd_cmd $fd_flags "${search_dirs[@]}" | fzf --multi --reverse --preview "$preview_cmd" || true)
+	fi
+
+	if [[ -z "$selected_files_str" ]]; then
+		if $use_zoxide; then
+			# If zoxide was used but file selection cancelled, continue to output the directories
+			:
+		else
+			exit 0
+		fi
+	fi
+
+	# --- Path Processing ---
+	selected_files=()
+	while IFS= read -r line; do
+		if [[ -n "$line" ]]; then
+			selected_files+=("$line")
+		fi
+	done <<<"$selected_files_str"
+
+	# --- Path Relativization ---
+	local relative_paths=()
+
+	# When using zoxide or explicit path arg, return absolute paths
+	if $use_zoxide || [[ -n "$path_arg" ]]; then
+		if [[ ${#selected_files[@]} -eq 0 ]]; then
+			# Fallback: output the directories themselves if no files were selected
+			relative_paths=("${search_dirs[@]}")
+		elif [[ ${#search_dirs[@]} -eq 1 ]]; then
+			# Single directory mode: fd returned relative paths, prepend the directory
+			relative_paths=("${selected_files[@]/#/${search_dirs[0]}\/}")
+		else
+			# Multiple directories mode: fd returned absolute paths, use as-is
+			relative_paths=("${selected_files[@]}")
+		fi
+	else
+		# Standard path relativization logic (non-zoxide always has single directory)
+		local search_dir="${search_dirs[0]}"
+		local base_dir_for_relativization=""
+
+		if $use_git_root; then
+			base_dir_for_relativization="$git_root"
+		fi
+
+		if [[ -n "$base_dir_for_relativization" ]]; then
+			# We need to calculate relative paths against a specific base directory
+			local realpath_cmd="realpath"
+			[[ "$OSTYPE" == "darwin"* ]] && realpath_cmd="grealpath"
+
+			# Prepend search directory to each filename to create full paths
+			local full_paths=("${selected_files[@]/#/$search_dir\/}")
+
+			while IFS= read -r line; do
+				if [[ -n "$line" ]]; then
+					relative_paths+=("$line")
+				fi
+			done < <("$realpath_cmd" --relative-to="$base_dir_for_relativization" "${full_paths[@]}")
+		else
+			# Paths are already relative to the correct directory (the pane_dir)
+			relative_paths=("${selected_files[@]}")
+		fi
+	fi
+
+	# --- Output Formatting ---
+	local files_oneline
+	if $at_prefix_mode; then
+		# Prefix each file with '@' and join with spaces
+		printf -v files_oneline "@%s " "${relative_paths[@]}"
+	else
+		# Shell-escape each file path and join with spaces
+		local escaped_paths=()
+		for path in "${relative_paths[@]}"; do
+			printf -v escaped_path "%q" "$path"
+			escaped_paths+=("$escaped_path")
+		done
+		files_oneline=$(printf "%s " "${escaped_paths[@]}")
+	fi
+
+	# --- Send to Tmux ---
+	tmux send-keys -t "$pane_id" "$files_oneline"
+}
+
+main "$@"

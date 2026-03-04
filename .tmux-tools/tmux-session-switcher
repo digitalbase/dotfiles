@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+#
+# Fast tmux session switcher using fzf
+#
+# Lists sessions sorted by last attached time (most recent first),
+# excludes current session, and switches to the selected one.
+#
+# Usage:
+#   Bind to a key in tmux.conf:
+#     bind C-j display-popup -E "tmux-session-switcher"
+#
+# Requirements: fzf
+
+target=$(tmux list-sessions -F '#{session_last_attached} #{session_name}' \
+  | sort -rn \
+  | sed -E 's/^[0-9]* //' \
+  | grep -v "^$(tmux display-message -p '#S')$" \
+  | fzf --reverse)
+
+if [[ -n "$target" ]]; then
+  tmux switch-client -t "$target"
+fi
