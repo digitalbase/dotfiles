@@ -6,7 +6,7 @@ general.import = [
   # "~/.config/alacritty/catppuccin-mocha.toml"
 ]
 
-window.decorations = "None"
+window.decorations = "Full"
 window.dimensions = { columns = 120, lines = 34 }
 window.padding = { x = 10, y = 10 }
 
@@ -37,6 +37,14 @@ persist = false
 mouse = { enabled = true, mods = "None" }
 binding = { key = "U", mods = "Command" }
 regex = "(ipfs:|ipns:|magnet:|mailto:|gemini://|gopher://|https://|http://|news:|file://|git://|ssh:|ftp://)[^\\s<{\\[\\]>\"`]+"
+
+[[hints.enabled]]
+command = "/Users/gijs/bin/open-in-phpstorm"
+post_processing = true
+persist = false
+mouse = { enabled = true, mods = "Command" }
+binding = { key = "O", mods = "Command" }
+regex = "[A-Za-z0-9_./@+-]+\\.[A-Za-z0-9_]+:[0-9]+(?::[0-9]+)?"
 
 [[keyboard.bindings]]
 chars = "\u00131" # C-s 1
@@ -117,8 +125,3 @@ mods = "Command|Shift"
 chars = "\u0013a" # C-s a (prefix + session switcher)
 key = "S"
 mods = "Command"
-
-[[keyboard.bindings]]
-chars = "\u001b[13;2u" # Shift+Enter (CSI-u)
-key = "Return"
-mods = "Shift"

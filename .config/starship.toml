@@ -1,265 +1,15 @@
-"$schema" = 'https://starship.rs/config-schema.json'
+"$schema" = "https://starship.rs/config-schema.json"
 
 format = """
-[](red)\
-$os\
-$username\
-[](bg:peach fg:red)\
-$directory\
-[](bg:yellow fg:peach)\
-${custom.git_branch_dedup}\
-$git_status\
-[](fg:yellow bg:green)\
-$c\
-$rust\
-$golang\
-$nodejs\
-$php\
-$java\
-$kotlin\
-$haskell\
-$python\
-[](fg:green bg:sapphire)\
-$conda\
-[](fg:sapphire bg:lavender)\
-$time\
-[ ](fg:lavender)\
-$line_break\
-$character"""
-
-palette = 'catppuccin_macchiato'
-
-[os]
-disabled = false
-style = "bg:red fg:crust"
-
-[os.symbols]
-Windows = ""
-Ubuntu = "󰕈"
-SUSE = ""
-Raspbian = "󰐿"
-Mint = "󰣭"
-Macos = "󰀵"
-Manjaro = ""
-Linux = "󰌽"
-Gentoo = "󰣨"
-Fedora = "󰣛"
-Alpine = ""
-Amazon = ""
-Android = ""
-AOSC = ""
-Arch = "󰣇"
-Artix = "󰣇"
-CentOS = ""
-Debian = "󰣚"
-Redhat = "󱄛"
-RedHatEnterprise = "󱄛"
-
-[username]
-show_always = true
-style_user = "bg:red fg:crust"
-style_root = "bg:red fg:crust"
-format = '[ $user]($style)'
-
-[directory]
-style = "bg:peach fg:crust"
-format = "[ $path ]($style)"
-truncation_length = 3
-truncation_symbol = "…/"
-
-[directory.substitutions]
-"Documents" = "󰈙 "
-"Downloads" = " "
-"Music" = "󰝚 "
-"Pictures" = " "
-"Developer" = "󰲋 "
-
-[git_branch]
-symbol = ""
-style = "bg:yellow"
-format = '[[ $symbol $branch ](fg:crust bg:yellow)]($style)'
-
-[custom.git_branch_dedup]
-command = '''
-d=$(basename "$PWD")
-b=$(git symbolic-ref --short -q HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
-if [ -n "$b" ] && [ "$b" != "$d" ]; then
-  printf " %s" "$b"
-fi
-'''
-when = 'git rev-parse --is-inside-work-tree >/dev/null 2>&1'
-style = "bg:yellow"
-format = '[[ $output ](fg:crust bg:yellow)]($style)'
-
-[git_status]
-style = "bg:yellow"
-format = '[[($all_status$ahead_behind )](fg:crust bg:yellow)]($style)'
-
-[nodejs]
-symbol = ""
-style = "bg:green"
-format = '[[ $symbol( $version) ](fg:crust bg:green)]($style)'
-
-[c]
-symbol = " "
-style = "bg:green"
-format = '[[ $symbol( $version) ](fg:crust bg:green)]($style)'
-
-[rust]
-symbol = ""
-style = "bg:green"
-format = '[[ $symbol( $version) ](fg:crust bg:green)]($style)'
-
-[golang]
-symbol = ""
-style = "bg:green"
-format = '[[ $symbol( $version) ](fg:crust bg:green)]($style)'
-
-[php]
-symbol = ""
-style = "bg:green"
-format = '[[ $symbol( $version) ](fg:crust bg:green)]($style)'
-
-[java]
-symbol = " "
-style = "bg:green"
-format = '[[ $symbol( $version) ](fg:crust bg:green)]($style)'
-
-[kotlin]
-symbol = ""
-style = "bg:green"
-format = '[[ $symbol( $version) ](fg:crust bg:green)]($style)'
-
-[haskell]
-symbol = ""
-style = "bg:green"
-format = '[[ $symbol( $version) ](fg:crust bg:green)]($style)'
-
-[python]
-symbol = ""
-style = "bg:green"
-format = '[[ $symbol( $version)(\(#$virtualenv\)) ](fg:crust bg:green)]($style)'
-
-[docker_context]
-symbol = ""
-style = "bg:sapphire"
-format = '[[ $symbol( $context) ](fg:crust bg:sapphire)]($style)'
-
-[conda]
-symbol = "  "
-style = "fg:crust bg:sapphire"
-format = '[$symbol$environment ]($style)'
-ignore_base = false
-
-[time]
-disabled = false
-time_format = "%R"
-style = "bg:lavender"
-format = '[[  $time ](fg:crust bg:lavender)]($style)'
-
-[line_break]
-disabled = true
-
-[character]
-disabled = false
-success_symbol = '[❯](bold fg:green)'
-error_symbol = '[❯](bold fg:red)'
-vimcmd_symbol = '[❮](bold fg:green)'
-vimcmd_replace_one_symbol = '[❮](bold fg:lavender)'
-vimcmd_replace_symbol = '[❮](bold fg:lavender)'
-vimcmd_visual_symbol = '[❮](bold fg:yellow)'
-
-[cmd_duration]
-show_milliseconds = false
-format = " in $duration "
-style = "bg:lavender"
-disabled = true
-show_notifications = true
-min_time_to_notify = 45000
-
-[palettes.catppuccin_mocha]
-rosewater = "#f5e0dc"
-flamingo = "#f2cdcd"
-pink = "#f5c2e7"
-mauve = "#cba6f7"
-red = "#f38ba8"
-maroon = "#eba0ac"
-peach = "#fab387"
-yellow = "#f9e2af"
-green = "#a6e3a1"
-teal = "#94e2d5"
-sky = "#89dceb"
-sapphire = "#74c7ec"
-blue = "#89b4fa"
-lavender = "#b4befe"
-text = "#cdd6f4"
-subtext1 = "#bac2de"
-subtext0 = "#a6adc8"
-overlay2 = "#9399b2"
-overlay1 = "#7f849c"
-overlay0 = "#6c7086"
-surface2 = "#585b70"
-surface1 = "#45475a"
-surface0 = "#313244"
-base = "#1e1e2e"
-mantle = "#181825"
-crust = "#11111b"
-
-[palettes.catppuccin_frappe]
-rosewater = "#f2d5cf"
-flamingo = "#eebebe"
-pink = "#f4b8e4"
-mauve = "#ca9ee6"
-red = "#e78284"
-maroon = "#ea999c"
-peach = "#ef9f76"
-yellow = "#e5c890"
-green = "#a6d189"
-teal = "#81c8be"
-sky = "#99d1db"
-sapphire = "#85c1dc"
-blue = "#8caaee"
-lavender = "#babbf1"
-text = "#c6d0f5"
-subtext1 = "#b5bfe2"
-subtext0 = "#a5adce"
-overlay2 = "#949cbb"
-overlay1 = "#838ba7"
-overlay0 = "#737994"
-surface2 = "#626880"
-surface1 = "#51576d"
-surface0 = "#414559"
-base = "#303446"
-mantle = "#292c3c"
-crust = "#232634"
-
-[palettes.catppuccin_latte]
-rosewater = "#dc8a78"
-flamingo = "#dd7878"
-pink = "#ea76cb"
-mauve = "#8839ef"
-red = "#d20f39"
-maroon = "#e64553"
-peach = "#fe640b"
-yellow = "#df8e1d"
-green = "#40a02b"
-teal = "#179299"
-sky = "#04a5e5"
-sapphire = "#209fb5"
-blue = "#1e66f5"
-lavender = "#7287fd"
-text = "#4c4f69"
-subtext1 = "#5c5f77"
-subtext0 = "#6c6f85"
-overlay2 = "#7c7f93"
-overlay1 = "#8c8fa1"
-overlay0 = "#9ca0b0"
-surface2 = "#acb0be"
-surface1 = "#bcc0cc"
-surface0 = "#ccd0da"
-base = "#eff1f5"
-mantle = "#e6e9ef"
-crust = "#dce0e8"
+[](red)$os$username[](bg:peach fg:red)${custom.smart_directory}[](bg:yellow fg:peach)${custom.git_branch_dedup}$git_status[](fg:yellow bg:green)$c$rust$golang$nodejs$php$java$kotlin$haskell$python[](fg:green bg:lavender)$time[ ](fg:lavender)$line_break$character
+"""
+right_format = ""
+add_newline = true
+continuation_prompt = "[∙](bright-black) "
+palette = "catppuccin_macchiato"
+scan_timeout = 30
+command_timeout = 500
+follow_symlinks = true
 
 [palettes.catppuccin_macchiato]
 rosewater = "#f4dbd6"
@@ -288,3 +38,184 @@ surface0 = "#363a4f"
 base = "#24273a"
 mantle = "#1e2030"
 crust = "#181926"
+
+[os]
+format = "[$symbol]($style)"
+style = "bg:red fg:crust"
+disabled = false
+
+[os.symbols]
+Macos = "󰀵"
+
+[username]
+show_always = true
+format = "[ $user]($style)"
+style_user = "bg:red fg:crust"
+style_root = "bg:red fg:crust"
+disabled = false
+
+[character]
+format = "$symbol "
+success_symbol = "[❯](bold fg:green)"
+error_symbol = "[❯](bold fg:red)"
+vimcmd_symbol = "[❮](bold fg:green)"
+vimcmd_visual_symbol = "[❮](bold fg:yellow)"
+vimcmd_replace_symbol = "[❮](bold fg:lavender)"
+vimcmd_replace_one_symbol = "[❮](bold fg:lavender)"
+disabled = false
+
+[line_break]
+disabled = true
+
+[time]
+disabled = false
+format = "[[  $time ](fg:crust bg:lavender)]($style)"
+style = "bg:lavender"
+time_format = "%R"
+use_12hr = false
+
+[git_status]
+format = "[[($all_status$ahead_behind )](fg:crust bg:yellow)]($style)"
+style = "bg:yellow"
+stashed = '\$'
+ahead = "⇡"
+behind = "⇣"
+up_to_date = ""
+diverged = "⇕"
+conflicted = "="
+deleted = "✘"
+renamed = "»"
+modified = "!"
+staged = "+"
+untracked = "?"
+disabled = false
+
+[nodejs]
+format = "[[ $symbol( $version) ](fg:crust bg:green)]($style)"
+symbol = ""
+style = "bg:green"
+version_format = "v${raw}"
+disabled = false
+
+[php]
+format = "[[ $symbol( $version) ](fg:crust bg:green)]($style)"
+symbol = ""
+style = "bg:green"
+version_format = "v${raw}"
+disabled = false
+
+[python]
+format = '[[ $symbol( $version)(\(#$virtualenv\)) ](fg:crust bg:green)]($style)'
+symbol = ""
+style = "bg:green"
+version_format = "v${raw}"
+disabled = false
+
+[c]
+format = "[[ $symbol( $version) ](fg:crust bg:green)]($style)"
+symbol = " "
+style = "bg:green"
+version_format = "v${raw}"
+disabled = false
+
+[rust]
+format = "[[ $symbol( $version) ](fg:crust bg:green)]($style)"
+symbol = ""
+style = "bg:green"
+version_format = "v${raw}"
+disabled = false
+
+[golang]
+format = "[[ $symbol( $version) ](fg:crust bg:green)]($style)"
+symbol = ""
+style = "bg:green"
+version_format = "v${raw}"
+disabled = false
+
+[java]
+format = "[[ $symbol( $version) ](fg:crust bg:green)]($style)"
+symbol = " "
+style = "bg:green"
+version_format = "v${raw}"
+disabled = false
+
+[kotlin]
+format = "[[ $symbol( $version) ](fg:crust bg:green)]($style)"
+symbol = ""
+style = "bg:green"
+version_format = "v${raw}"
+disabled = false
+
+[haskell]
+format = "[[ $symbol( $version) ](fg:crust bg:green)]($style)"
+symbol = ""
+style = "bg:green"
+version_format = "v${raw}"
+disabled = false
+
+[custom.smart_directory]
+format = "[ $output ]($style)"
+style = "bg:peach fg:crust"
+when = "true"
+shell = ["zsh", "--no-rcs"]
+command = '''
+cols=${COLUMNS:-120}
+cwd=${PWD/#$HOME/~}
+leaf=${cwd##*/}
+
+git_root=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -n "$git_root" ]; then
+  repo=${git_root##*/}
+  rel=${PWD#"$git_root"/}
+  if [ "$PWD" = "$git_root" ]; then
+    rel=""
+  fi
+
+  if [ "$cols" -lt 80 ]; then
+    if [ -n "$rel" ]; then
+      printf "%s/%s" "$repo" "${PWD##*/}"
+    else
+      printf "%s" "$repo"
+    fi
+  elif [ "$cols" -lt 110 ]; then
+    if [ -n "$rel" ]; then
+      printf "%s/%s" "$repo" "$rel"
+    else
+      printf "%s" "$repo"
+    fi
+  else
+    if [ "$cwd" = ~* ]; then
+      printf "%s" "$cwd"
+    else
+      printf "%s" "$repo${rel:+/$rel}"
+    fi
+  fi
+else
+  if [ "$cols" -lt 80 ]; then
+    printf "%s" "$leaf"
+  elif [ "$cols" -lt 110 ]; then
+    if [ "$cwd" = ~/*/* ]; then
+      printf "~/%s" "$leaf"
+    else
+      printf "%s" "$cwd"
+    fi
+  else
+    printf "%s" "$cwd"
+  fi
+fi
+'''
+
+[custom.git_branch_dedup]
+format = "[[ $output ](fg:crust bg:yellow)]($style)"
+style = "bg:yellow"
+when = "[ ${COLUMNS:-120} -ge 80 ] && git rev-parse --is-inside-work-tree >/dev/null 2>&1"
+shell = ["zsh", "--no-rcs"]
+command = '''
+cols=${COLUMNS:-120}
+leaf=${PWD##*/}
+branch=$(git symbolic-ref --short -q HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
+
+if [ -n "$branch" ] && [ "$branch" != "$leaf" ]; then
+  printf " %s" "$branch"
+fi
+'''
