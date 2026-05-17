@@ -5,10 +5,49 @@ REPO_URL="${DOTFILES_REPO_URL:-git@github.com:digitalbase/dotfiles.git}"
 DOTFILES_DIR="${DOTFILES_DIR:-$HOME/Projects/dotfiles}"
 BACKUP_DIR="$HOME/.dotfiles-backup/$(date +%Y%m%d%H%M%S)"
 
+install_linux_tools() {
+  if [ "$(uname -s)" != "Linux" ]; then
+    return 0
+  fi
+
+  if ! command -v apt-get >/dev/null 2>&1; then
+    echo "Linux host detected, but only apt-based installs are automated." >&2
+    return 0
+  fi
+
+  local missing_packages=()
+
+  command -v zsh >/dev/null 2>&1 || missing_packages+=(zsh)
+  command -v curl >/dev/null 2>&1 || missing_packages+=(curl)
+  command -v zoxide >/dev/null 2>&1 || missing_packages+=(zoxide)
+  command -v direnv >/dev/null 2>&1 || missing_packages+=(direnv)
+
+  if [ "${#missing_packages[@]}" -gt 0 ]; then
+    sudo apt-get update
+    sudo apt-get install -y "${missing_packages[@]}"
+  fi
+
+  if ! command -v starship >/dev/null 2>&1; then
+    curl -fsSL https://starship.rs/install.sh | sudo sh -s -- -y
+  fi
+
+  if command -v zsh >/dev/null 2>&1 && command -v chsh >/dev/null 2>&1; then
+    local zsh_path current_shell
+    zsh_path="$(command -v zsh)"
+    current_shell="$(getent passwd "$(id -un)" | cut -d: -f7)"
+
+    if [ "$current_shell" != "$zsh_path" ]; then
+      sudo chsh -s "$zsh_path" "$(id -un)"
+    fi
+  fi
+}
+
 if ! command -v git >/dev/null 2>&1; then
   echo "git is required before bootstrapping dotfiles." >&2
   exit 1
 fi
+
+install_linux_tools
 
 if [ ! -d "$DOTFILES_DIR/.git" ]; then
   mkdir -p "$(dirname "$DOTFILES_DIR")"
