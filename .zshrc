@@ -70,5 +70,6 @@ k8ss() {
 
   kubectl -n production exec -it "$pod" -c "$container" -- /usr/bin/bash -lc "cd '$workdir' && exec /usr/bin/bash"
 }
-eval "$(direnv hook zsh)"
-eval "$(direnv hook zsh)"
+if command -v direnv >/dev/null 2>&1; then
+  eval "$(direnv hook zsh)"
+fi
