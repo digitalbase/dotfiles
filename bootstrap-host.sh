@@ -19,6 +19,7 @@ install_linux_tools() {
 
   command -v zsh >/dev/null 2>&1 || missing_packages+=(zsh)
   command -v curl >/dev/null 2>&1 || missing_packages+=(curl)
+  command -v fzf >/dev/null 2>&1 || missing_packages+=(fzf)
   command -v zoxide >/dev/null 2>&1 || missing_packages+=(zoxide)
   command -v direnv >/dev/null 2>&1 || missing_packages+=(direnv)
 
