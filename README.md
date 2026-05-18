@@ -24,4 +24,6 @@ If the repo is already present, rerun `~/Projects/dotfiles/bootstrap-host.sh` to
 
 - This repo tracks terminal and shell configs only.
 - `install.sh` copies bundled `.tmux-tools` scripts to `~/.tmux-tools`.
-- `bootstrap-host.sh` backs up conflicting files under `~/.dotfiles-backup/`, runs `install.sh`, and installs the tmux plugin manager if missing.
+- On apt-based Linux hosts, `bootstrap-host.sh` installs the required terminal tools: `git`, `ssh`, `zsh`, `curl`, `tmux`, `mosh`, `fzf`, `zoxide`, `direnv`, `ripgrep`, `tree`, `fd`, `bat`, `gh`, and `starship`.
+- `bootstrap-host.sh` backs up conflicting files under `~/.dotfiles-backup/`, runs `install.sh`, installs the tmux plugin manager if missing, and installs configured tmux plugins.
+- Put host-specific aliases and shortcuts in `~/.zshrc.local`; the shared `.zshrc` sources it when present.

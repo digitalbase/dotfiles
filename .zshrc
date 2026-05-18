@@ -13,6 +13,12 @@ export PATH="$HOME/scripts:$PATH"
 
 alias wm='workmux'
 alias wml='workmux-linear'
+alias homer='mt homer main'
+alias shomer='st homer main'
+alias mini='mt mini main mac-mini'
+alias smini='st mini main mac-mini'
+alias dokploy='mt dokploy main'
+alias sdokploy='st dokploy main'
 #eval "$(workmux completions zsh)"
 
 export PATH="/opt/homebrew/opt/postgresql@18/bin:$PATH"
@@ -72,4 +78,8 @@ k8ss() {
 }
 if command -v direnv >/dev/null 2>&1; then
   eval "$(direnv hook zsh)"
+fi
+
+if [ -f "$HOME/.zshrc.local" ]; then
+  source "$HOME/.zshrc.local"
 fi
