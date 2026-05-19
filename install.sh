@@ -6,6 +6,8 @@ TMUX_TOOLS_DIR="$HOME/.tmux-tools"
 
 mkdir -p "$HOME/.config/alacritty"
 mkdir -p "$HOME/.config"
+mkdir -p "$HOME/.codex"
+mkdir -p "$HOME/.config/opencode"
 
 ln -sf "$REPO_DIR/.zshrc" "$HOME/.zshrc"
 ln -sf "$REPO_DIR/.zprofile" "$HOME/.zprofile"
@@ -15,6 +17,8 @@ ln -sf "$REPO_DIR/.gitconfig" "$HOME/.gitconfig"
 ln -sf "$REPO_DIR/.config/alacritty/alacritty.toml" "$HOME/.config/alacritty/alacritty.toml"
 ln -sf "$REPO_DIR/.config/alacritty/catppuccin-macchiato.toml" "$HOME/.config/alacritty/catppuccin-macchiato.toml"
 ln -sf "$REPO_DIR/.config/starship.toml" "$HOME/.config/starship.toml"
+ln -sf "$REPO_DIR/AGENTS.md" "$HOME/.codex/AGENTS.md"
+ln -sf "$REPO_DIR/AGENTS.md" "$HOME/.config/opencode/AGENTS.md"
 
 mkdir -p "$TMUX_TOOLS_DIR"
 cp -f "$REPO_DIR/.tmux-tools/code-wait" "$TMUX_TOOLS_DIR/code-wait"

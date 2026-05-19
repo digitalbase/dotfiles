@@ -9,6 +9,7 @@
 - `.config/alacritty/alacritty.toml`
 - `.config/alacritty/catppuccin-macchiato.toml`
 - `.config/starship.toml`
+- `AGENTS.md`, linked for Codex and OpenCode
 - `.tmux-tools/*` helper scripts
 
 ## Install on a new machine
