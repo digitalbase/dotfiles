@@ -161,6 +161,18 @@ shell = ["zsh", "--no-rcs"]
 command = '''
 cols=${COLUMNS:-120}
 cwd=${PWD/#$HOME/~}
+display_cwd=$cwd
+case "$PWD" in
+  "$HOME"/Projects/*)
+    display_cwd=${PWD#"$HOME"/Projects/}
+    ;;
+  /home/*/Projects/*)
+    display_cwd=${PWD#/home/*/Projects/}
+    ;;
+  /Users/*/Projects/*)
+    display_cwd=${PWD#/Users/*/Projects/}
+    ;;
+esac
 leaf=${cwd##*/}
 
 git_root=$(git rev-parse --show-toplevel 2>/dev/null)
@@ -184,7 +196,9 @@ if [ -n "$git_root" ]; then
       printf "%s" "$repo"
     fi
   else
-    if [ "$cwd" = ~* ]; then
+    if [ "$display_cwd" != "$cwd" ]; then
+      printf "%s" "$display_cwd"
+    elif [ "$cwd" = ~* ]; then
       printf "%s" "$cwd"
     else
       printf "%s" "$repo${rel:+/$rel}"
@@ -194,13 +208,15 @@ else
   if [ "$cols" -lt 80 ]; then
     printf "%s" "$leaf"
   elif [ "$cols" -lt 110 ]; then
-    if [ "$cwd" = ~/*/* ]; then
+    if [ "$display_cwd" != "$cwd" ]; then
+      printf "%s" "$display_cwd"
+    elif [ "$cwd" = ~/*/* ]; then
       printf "~/%s" "$leaf"
     else
       printf "%s" "$cwd"
     fi
   else
-    printf "%s" "$cwd"
+    printf "%s" "$display_cwd"
   fi
 fi
 '''
