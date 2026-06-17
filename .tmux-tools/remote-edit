@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage: remote-edit <host> [file]
+
+Downloads a file from a target, opens it locally, then asks before uploading it back.
+Targets are SSH hosts by default. Configured agent names use their configured backend.
+If file is omitted, edits .env under the target base directory.
+Relative files are resolved under REMOTE_EDIT_DIR. For profiled agents this defaults
+to /opt/data/profiles/<profile>; otherwise it defaults to /opt/data.
+
+Examples:
+  remote-edit dokploy
+  remote-edit dokploy app.dev
+  remote-edit homer /etc/nginx/nginx.conf
+  remote-edit coding .env
+  remote-edit sales /opt/data/.env
+
+Environment:
+  REMOTE_EDIT_DIR=/opt/data
+  REMOTE_EDIT_EDITOR="code --wait"
+  AGENT_<NAME>_NAMESPACE    Kubernetes namespace override for an agent
+  AGENT_<NAME>_CONTEXT      Kubernetes context override for an agent
+  AGENT_<NAME>_SELECTOR     Optional pod label selector override
+  AGENT_<NAME>_POD_PATTERN  Pod name substring override
+USAGE
+}
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/agent-common"
+
+remote_quote() {
+  printf '%q' "$1"
+}
+
+sha256() {
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | cut -d ' ' -f 1
+  else
+    sha256sum "$1" | cut -d ' ' -f 1
+  fi
+}
+
+open_editor() {
+  local file="$1"
+
+  if [ -n "${REMOTE_EDIT_EDITOR:-}" ]; then
+    # shellcheck disable=SC2086
+    $REMOTE_EDIT_EDITOR "$file"
+  elif command -v code >/dev/null 2>&1; then
+    code --wait "$file"
+  elif [ -n "${VISUAL:-}" ]; then
+    "$VISUAL" "$file"
+  elif [ -n "${EDITOR:-}" ]; then
+    "$EDITOR" "$file"
+  elif command -v open >/dev/null 2>&1; then
+    open "$file"
+    read -r -p "Press enter when you are done editing... " _
+  else
+    echo "No editor found. Install the 'code' CLI or set REMOTE_EDIT_EDITOR." >&2
+    return 1
+  fi
+}
+
+remote_exists() {
+  case "$target_type" in
+    agent)
+      case "${AGENT_BACKEND:-k8s}" in
+        docker-ssh) ssh "$AGENT_CONTEXT" "docker exec '$AGENT_CONTAINER' sh -lc 'test -e $remote_path_q'" ;;
+        *) agent_common_kubectl exec -n "$AGENT_NAMESPACE" "$AGENT_POD" -c "$AGENT_CONTAINER" -- sh -lc "test -e $remote_path_q" ;;
+      esac
+      ;;
+    ssh) ssh "$host" "test -e $remote_path_q" ;;
+  esac
+}
+
+download_remote() {
+  case "$target_type" in
+    agent) "$SCRIPT_DIR/agent" get "$AGENT_NAME" "$remote_path" "$local_file" ;;
+    ssh) scp -p "$host:$remote_path_q" "$local_file" ;;
+  esac
+}
+
+make_remote_dir() {
+  case "$target_type" in
+    agent) : ;;
+    ssh) ssh "$host" "mkdir -p $remote_dir_q" ;;
+  esac
+}
+
+upload_remote() {
+  case "$target_type" in
+    agent) "$SCRIPT_DIR/agent" put "$AGENT_NAME" "$local_file" "$remote_path" ;;
+    ssh) scp -p "$local_file" "$host:$remote_path_q" ;;
+  esac
+}
+
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+  usage
+  exit 0
+fi
+
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
+  usage >&2
+  exit 2
+fi
+
+host="$1"
+base_dir="${REMOTE_EDIT_DIR:-/opt/data}"
+input_file="${2:-}"
+target_type="ssh"
+
+if agent_common_load "$host" >/dev/null 2>&1; then
+  target_type="agent"
+  agent_common_discover_pod
+  if [[ -z "${REMOTE_EDIT_DIR:-}" && -n "${AGENT_PROFILE:-}" ]]; then
+    base_dir="/opt/data/profiles/$AGENT_PROFILE"
+  fi
+fi
+
+input_file="${input_file:-${base_dir%/}/.env}"
+
+if [[ "$input_file" = /* ]]; then
+  remote_path="$input_file"
+else
+  remote_path="${base_dir%/}/$input_file"
+fi
+
+remote_path_q="$(remote_quote "$remote_path")"
+remote_dir="$(dirname "$remote_path")"
+remote_dir_q="$(remote_quote "$remote_dir")"
+
+tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/remote-edit.XXXXXX")"
+keep_tmpdir=0
+cleanup() {
+  if [ "$keep_tmpdir" -eq 0 ]; then
+    rm -rf "$tmpdir"
+  fi
+}
+trap cleanup EXIT
+
+local_file="$tmpdir/$(basename "$remote_path")"
+
+if remote_exists; then
+  download_remote
+else
+  read -r -p "$host:$remote_path does not exist. Create it? [y/N] " create_answer
+  case "$create_answer" in
+    y|Y|yes|YES) : > "$local_file" ;;
+    *) echo "Aborted."; exit 1 ;;
+  esac
+fi
+
+before_hash="$(sha256 "$local_file")"
+
+echo "Editing $host:$remote_path"
+open_editor "$local_file"
+
+after_hash="$(sha256 "$local_file")"
+if [ "$before_hash" = "$after_hash" ]; then
+  echo "No changes made."
+  exit 0
+fi
+
+read -r -p "Upload changes to $host:$remote_path? [y/N] " upload_answer
+case "$upload_answer" in
+  y|Y|yes|YES) ;;
+  *) keep_tmpdir=1; echo "Not uploaded. Edited copy remains at $local_file"; exit 1 ;;
+esac
+
+make_remote_dir
+upload_remote
+echo "Uploaded $host:$remote_path"

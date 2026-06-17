@@ -1,0 +1,567 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/agent-common"
+
+supports_color() {
+  [[ -t 1 && -z "${NO_COLOR:-}" ]] || return 1
+  command -v tput >/dev/null 2>&1 || return 1
+  [[ "$(tput colors 2>/dev/null || printf 0)" -ge 8 ]]
+}
+
+usage_row() {
+  local plain="$1"
+  local colored="$2"
+  local description="$3"
+  local width=56
+  local columns="${COLUMNS:-}"
+
+  if [[ -z "$columns" ]] && command -v tput >/dev/null 2>&1; then
+    columns="$(tput cols 2>/dev/null || printf 80)"
+  fi
+  columns="${columns:-80}"
+
+  if [[ "$columns" -lt 140 ]]; then
+    printf '  %b\n' "$colored"
+    printf '    %s\n' "$description"
+    return
+  fi
+
+  printf '  %b' "$colored"
+  if [[ "${#plain}" -lt "$width" ]]; then
+    printf '%*s' $((width - ${#plain})) ''
+  else
+    printf '\n%*s' $((width + 2)) ''
+  fi
+  printf ' %s\n' "$description"
+}
+
+usage() {
+  local reset="" bold="" dim="" cmd="" alias="" req="" path="" opt=""
+
+  if supports_color; then
+    reset="$(tput sgr0)"
+    bold="$(tput bold)"
+    dim="$(tput dim 2>/dev/null || true)"
+    cmd="$(tput setaf 2)"
+    alias="$(tput setaf 6)"
+    req="$(tput setaf 3)"
+    path="$(tput setaf 5)"
+    opt="$(tput setaf 4)"
+  fi
+
+  printf '%b\n' "${bold}Usage:${reset} ${cmd}agent${reset} ${req}<command>${reset} ${opt}[agent]${reset} ${opt}[args]${reset}"
+  printf '\n%b\n' "${bold}Commands:${reset}"
+  usage_row "help" "${cmd}help${reset}" "Show this help"
+  usage_row "list" "${cmd}list${reset}" "Show configured agent names and aliases"
+  usage_row "pod <agent>" "${cmd}pod${reset} ${req}<agent>${reset}" "Print the selected running pod"
+  usage_row "edit <agent> [file]" "${cmd}edit${reset} ${req}<agent>${reset} ${opt}[file]${reset}" "Edit a remote file through remote-edit"
+  usage_row "put <agent> local-path [remote-path]" "${cmd}put${reset} ${req}<agent>${reset} ${path}local-path${reset} ${opt}[remote-path]${reset}" "Copy a local file or directory to an agent"
+  usage_row "get <agent> remote-path [local-path]" "${cmd}get${reset} ${req}<agent>${reset} ${path}remote-path${reset} ${opt}[local-path]${reset}" "Copy a file or directory from an agent"
+  usage_row "cp <source-agent> source-path <target-agent|all> [target-path]" "${cmd}cp${reset} ${req}<source-agent>${reset} ${path}source-path${reset} ${req}<target-agent|all>${reset} ${opt}[target-path]${reset}" "Copy a file or directory between agents"
+  usage_row "backup-config <source-agent> <target-agent>" "${cmd}backup-config${reset} ${req}<source-agent>${reset} ${req}<target-agent>${reset}" "Back up config/state from one Kubernetes agent to another"
+  usage_row "shell <agent>" "${cmd}shell${reset} ${req}<agent>${reset}" "Open a normal shell in the agent profile"
+  usage_row "chat <agent>" "${cmd}chat${reset} ${req}<agent>${reset}" "Open Hermes chat with the agent profile"
+  usage_row "hermes <agent> [args...]" "${cmd}hermes${reset} ${req}<agent>${reset} ${opt}[args...]${reset}" "Run a Hermes command with the agent profile"
+
+  printf '\n%b\n' "${bold}Shell aliases:${reset}"
+  usage_row "ahelp" "${alias}ahelp${reset}" "Show this help"
+  usage_row "aedit <agent> [file]" "${alias}aedit${reset} ${req}<agent>${reset} ${opt}[file]${reset}" "Edit a remote file"
+  usage_row "aput <agent> local-path [remote-path]" "${alias}aput${reset} ${req}<agent>${reset} ${path}local-path${reset} ${opt}[remote-path]${reset}" "Copy a local file or directory to an agent"
+  usage_row "aget <agent> remote-path [local-path]" "${alias}aget${reset} ${req}<agent>${reset} ${path}remote-path${reset} ${opt}[local-path]${reset}" "Copy from an agent"
+  usage_row "acp <source-agent> source-path <target-agent|all> [target-path]" "${alias}acp${reset} ${req}<source-agent>${reset} ${path}source-path${reset} ${req}<target-agent|all>${reset} ${opt}[target-path]${reset}" "Copy between agents"
+  usage_row "ashell <agent>" "${alias}ashell${reset} ${req}<agent>${reset}" "Open a normal shell"
+  usage_row "achat <agent>" "${alias}achat${reset} ${req}<agent>${reset}" "Open Hermes chat"
+  usage_row "ahermes <agent> [args...]" "${alias}ahermes${reset} ${req}<agent>${reset} ${opt}[args...]${reset}" "Run Hermes"
+  usage_row "hermes <agent> [args...]" "${alias}hermes${reset} ${req}<agent>${reset} ${opt}[args...]${reset}" "Run Hermes in the Marie pod"
+
+  printf '\n%b\n' "${bold}Targets:${reset}"
+  printf '  Preset Kubernetes agents run on the Marie Hermes pod and use /opt/data/profiles/<profile>.\n'
+  printf '  Hermes invocations for profiled agents include -p <profile> --tui.\n'
+  printf '  The homer agents run in Docker and use ssh + docker exec.\n'
+
+  printf '\n%b\n' "${bold}Examples:${reset}"
+  printf '  %bagent put coding ./config.yaml%b\n' "$dim" "$reset"
+  printf '  %bagent get coding config.yaml ./config.yaml%b\n' "$dim" "$reset"
+  printf '  %bagent shell coding%b\n' "$dim" "$reset"
+  printf '  %bhermes coding%b\n' "$dim" "$reset"
+  printf '  %bagent hermes coding status%b\n' "$dim" "$reset"
+  printf '  %bagent shell personal%b\n' "$dim" "$reset"
+  printf '  %bagent cp sales config.yaml quality%b\n' "$dim" "$reset"
+  printf '  %bagent backup-config coding marie%b\n' "$dim" "$reset"
+}
+
+show_help() {
+  usage
+  printf '\nConfigured agents and aliases:\n'
+  agent_common_known_names | sed 's/^/  /'
+}
+
+quote() {
+  printf '%q' "$1"
+}
+
+agent_default_copy_dir() {
+  if [[ -n "${AGENT_PROFILE:-}" ]]; then
+    printf '/opt/data/profiles/%s' "$AGENT_PROFILE"
+  else
+    printf '%s' "/opt/data"
+  fi
+}
+
+resolve_remote_path() {
+  local local_path="$1"
+  local remote_path="${2:-}"
+  local base_dir="${AGENT_COPY_DIR:-$(agent_default_copy_dir)}"
+
+  if [[ -z "$remote_path" ]]; then
+    remote_path="${base_dir%/}/$(basename "$local_path")"
+  elif [[ "$remote_path" != /* ]]; then
+    remote_path="${base_dir%/}/$remote_path"
+  fi
+
+  printf '%s' "$remote_path"
+}
+
+resolve_agent_path() {
+  local path="$1"
+  local base_dir="${AGENT_COPY_DIR:-$(agent_default_copy_dir)}"
+
+  if [[ "$path" != /* ]]; then
+    path="${base_dir%/}/$path"
+  fi
+
+  printf '%s' "$path"
+}
+
+agent_file_owner() {
+  printf '%s' "${AGENT_FILE_OWNER:-hermes:hermes}"
+}
+
+chown_agent_path() {
+  local remote_path="$1"
+  local owner_q remote_path_q
+
+  owner_q="$(quote "$(agent_file_owner)")"
+  remote_path_q="$(quote "$remote_path")"
+
+  if [[ "${AGENT_BACKEND:-k8s}" = "docker-ssh" ]]; then
+    ssh "$AGENT_CONTEXT" "docker exec '$AGENT_CONTAINER' sh -lc 'chown -R $owner_q $remote_path_q'"
+  else
+    agent_common_kubectl exec -n "$AGENT_NAMESPACE" "$AGENT_POD" -c "$AGENT_CONTAINER" -- sh -lc "chown -R $owner_q $remote_path_q"
+  fi
+}
+
+put_file() {
+  local agent_name="$1"
+  local local_path="$2"
+  local remote_path="${3:-}"
+  local remote_dir remote_dir_q
+
+  if [[ ! -e "$local_path" ]]; then
+    echo "Local path does not exist: $local_path" >&2
+    return 1
+  fi
+
+  agent_common_load "$agent_name"
+  agent_common_discover_pod
+
+  remote_path="$(resolve_remote_path "$local_path" "$remote_path")"
+  remote_dir="$(dirname "$remote_path")"
+  remote_dir_q="$(quote "$remote_dir")"
+
+  if [[ "${AGENT_BACKEND:-k8s}" = "docker-ssh" ]]; then
+    agent_docker_put "$local_path" "$remote_path"
+  else
+    agent_common_kubectl exec -n "$AGENT_NAMESPACE" "$AGENT_POD" -c "$AGENT_CONTAINER" -- sh -lc "mkdir -p $remote_dir_q"
+    agent_common_kubectl cp -n "$AGENT_NAMESPACE" -c "$AGENT_CONTAINER" "$local_path" "$AGENT_POD:$remote_path"
+  fi
+  chown_agent_path "$remote_path"
+
+  printf 'Copied %s to %s:%s (%s)\n' "$local_path" "$AGENT_NAME" "$remote_path" "$AGENT_CONTEXT"
+}
+
+agent_docker_put() {
+  local local_path="$1"
+  local remote_path="$2"
+  local local_dir local_base remote_dir remote_base local_dir_q local_base_q remote_dir_q remote_base_q remote_path_q
+
+  local_dir="$(dirname "$local_path")"
+  local_base="$(basename "$local_path")"
+  remote_dir="$(dirname "$remote_path")"
+  remote_base="$(basename "$remote_path")"
+  local_dir_q="$(quote "$local_dir")"
+  local_base_q="$(quote "$local_base")"
+  remote_dir_q="$(quote "$remote_dir")"
+  remote_base_q="$(quote "$remote_base")"
+  remote_path_q="$(quote "$remote_path")"
+
+  ssh "$AGENT_CONTEXT" "docker exec '$AGENT_CONTAINER' mkdir -p $remote_dir_q"
+  COPYFILE_DISABLE=1 tar --no-xattrs -C "$local_dir" -cf - "$local_base" \
+    | ssh "$AGENT_CONTEXT" "docker exec -i '$AGENT_CONTAINER' sh -lc 'tar -C $remote_dir_q -xf - && if [ $local_base_q != $remote_base_q ]; then rm -rf $remote_path_q && mv $remote_dir_q/$local_base_q $remote_path_q; fi'"
+}
+
+get_file() {
+  local agent_name="$1"
+  local remote_path_input="$2"
+  local local_path="${3:-}"
+  local remote_path remote_path_q local_dir
+
+  agent_common_load "$agent_name"
+  agent_common_discover_pod
+
+  remote_path="$(resolve_agent_path "$remote_path_input")"
+  remote_path_q="$(quote "$remote_path")"
+
+  if [[ -z "$local_path" ]]; then
+    local_path="$(basename "$remote_path")"
+  fi
+
+  if [[ "${AGENT_BACKEND:-k8s}" = "docker-ssh" ]]; then
+    ssh "$AGENT_CONTEXT" "docker exec '$AGENT_CONTAINER' sh -lc 'test -e $remote_path_q'"
+  else
+    agent_common_kubectl exec -n "$AGENT_NAMESPACE" "$AGENT_POD" -c "$AGENT_CONTAINER" -- sh -lc "test -e $remote_path_q"
+  fi
+
+  if [[ -e "$local_path" && -d "$local_path" ]]; then
+    :
+  else
+    local_dir="$(dirname "$local_path")"
+    mkdir -p "$local_dir"
+  fi
+
+  if [[ "${AGENT_BACKEND:-k8s}" = "docker-ssh" ]]; then
+    agent_docker_get "$remote_path" "$local_path"
+  else
+    agent_common_kubectl cp -n "$AGENT_NAMESPACE" -c "$AGENT_CONTAINER" "$AGENT_POD:$remote_path" "$local_path"
+  fi
+
+  printf 'Copied %s:%s to %s (%s)\n' "$AGENT_NAME" "$remote_path" "$local_path" "$AGENT_CONTEXT"
+}
+
+agent_docker_get() {
+  local remote_path="$1"
+  local local_path="$2"
+  local remote_dir remote_base remote_dir_q remote_base_q
+
+  remote_dir="$(dirname "$remote_path")"
+  remote_base="$(basename "$remote_path")"
+  remote_dir_q="$(quote "$remote_dir")"
+  remote_base_q="$(quote "$remote_base")"
+
+  if [[ -e "$local_path" && -d "$local_path" ]]; then
+    ssh "$AGENT_CONTEXT" "docker exec '$AGENT_CONTAINER' tar -C $remote_dir_q -cf - $remote_base_q" \
+      | COPYFILE_DISABLE=1 tar --no-xattrs -C "$local_path" -xf -
+  else
+    ssh "$AGENT_CONTEXT" "docker exec '$AGENT_CONTAINER' tar -C $remote_dir_q -cf - $remote_base_q" \
+      | COPYFILE_DISABLE=1 tar --no-xattrs -xf -
+
+    if [[ "$local_path" != "$remote_base" ]]; then
+      rm -rf "$local_path"
+      mv "$remote_base" "$local_path"
+    fi
+  fi
+}
+
+copy_between_agents() {
+  local source_agent="$1"
+  local source_path_input="$2"
+  local target_agent="$3"
+  local target_path_input="${4:-}"
+  local source_name source_context source_namespace source_pod source_container source_shell source_path source_dir source_base source_dir_q source_path_q
+  local target_name target_context target_namespace target_pod target_container target_shell target_path target_dir target_base target_dir_q target_path_q source_base_q target_owner_q
+
+  agent_common_load "$source_agent"
+  agent_common_discover_pod
+  if [[ "${AGENT_BACKEND:-k8s}" != "k8s" ]]; then
+    echo "agent cp currently supports Kubernetes agents only." >&2
+    return 1
+  fi
+  source_name="$AGENT_NAME"
+  source_context="$AGENT_CONTEXT"
+  source_namespace="$AGENT_NAMESPACE"
+  source_pod="$AGENT_POD"
+  source_container="$AGENT_CONTAINER"
+  source_shell="$AGENT_SHELL"
+  source_path="$(resolve_agent_path "$source_path_input")"
+  source_dir="$(dirname "$source_path")"
+  source_base="$(basename "$source_path")"
+  source_dir_q="$(quote "$source_dir")"
+  source_path_q="$(quote "$source_path")"
+  source_base_q="$(quote "$source_base")"
+
+  agent_common_load "$target_agent"
+  agent_common_discover_pod
+  if [[ "${AGENT_BACKEND:-k8s}" != "k8s" ]]; then
+    echo "agent cp currently supports Kubernetes agents only." >&2
+    return 1
+  fi
+  target_name="$AGENT_NAME"
+  target_context="$AGENT_CONTEXT"
+  target_namespace="$AGENT_NAMESPACE"
+  target_pod="$AGENT_POD"
+  target_container="$AGENT_CONTAINER"
+  target_shell="$AGENT_SHELL"
+  if [[ -n "$target_path_input" ]]; then
+    target_path="$(resolve_agent_path "$target_path_input")"
+  else
+    target_path="$(resolve_agent_path "$source_base")"
+  fi
+  target_dir="$(dirname "$target_path")"
+  target_base="$(basename "$target_path")"
+  target_dir_q="$(quote "$target_dir")"
+  target_path_q="$(quote "$target_path")"
+  target_owner_q="$(quote "$(agent_file_owner)")"
+
+  kubectl --context "$source_context" exec -n "$source_namespace" "$source_pod" -c "$source_container" -- "$source_shell" -lc "test -e $source_path_q && tar -C $source_dir_q -cf - $source_base_q" \
+    | kubectl --context "$target_context" exec -i -n "$target_namespace" "$target_pod" -c "$target_container" -- "$target_shell" -lc "mkdir -p $target_dir_q && tar -C $target_dir_q -xf - && if [[ $source_base_q != $(quote "$target_base") ]]; then rm -rf $target_path_q && mv $target_dir_q/$source_base_q $target_path_q; fi && chown -R $target_owner_q $target_path_q"
+
+  printf 'Copied %s:%s to %s:%s (%s -> %s)\n' "$source_name" "$source_path" "$target_name" "$target_path" "$source_context" "$target_context"
+}
+
+backup_config() {
+  local source_agent="$1"
+  local target_agent="$2"
+  local source_name source_context source_namespace source_pod source_container
+  local target_name target_context target_namespace target_pod target_container
+  local archive source_archive source_chunks target_dir target_archive target_chunks chunk_size
+  local local_dir local_archive chunk chunk_list
+
+  agent_common_load "$source_agent"
+  agent_common_discover_pod
+  if [[ "${AGENT_BACKEND:-k8s}" != "k8s" ]]; then
+    echo "agent backup-config currently supports Kubernetes agents only." >&2
+    return 1
+  fi
+  source_name="$AGENT_NAME"
+  source_context="$AGENT_CONTEXT"
+  source_namespace="$AGENT_NAMESPACE"
+  source_pod="$AGENT_POD"
+  source_container="$AGENT_CONTAINER"
+
+  agent_common_load "$target_agent"
+  agent_common_discover_pod
+  if [[ "${AGENT_BACKEND:-k8s}" != "k8s" ]]; then
+    echo "agent backup-config currently supports Kubernetes agents only." >&2
+    return 1
+  fi
+  target_name="$AGENT_NAME"
+  target_context="$AGENT_CONTEXT"
+  target_namespace="$AGENT_NAMESPACE"
+  target_pod="$AGENT_POD"
+  target_container="$AGENT_CONTAINER"
+
+  archive="${source_name}-agent-config-state-$(date +%Y%m%d-%H%M%S).tar.gz"
+  source_archive="/tmp/$archive"
+  source_chunks="/tmp/$archive.chunks"
+  target_dir="/opt/data/folder/${source_name}-agent"
+  target_archive="$target_dir/$archive"
+  target_chunks="$target_archive.chunks"
+  chunk_size="${AGENT_BACKUP_CHUNK_SIZE:-50m}"
+  local_dir="$(mktemp -d "${TMPDIR:-/tmp}/agent-backup.XXXXXX")"
+  local_archive="$local_dir/$archive"
+
+  printf 'Creating config/state archive on %s...\n' "$source_name"
+  kubectl --context "$source_context" exec -n "$source_namespace" "$source_pod" -c "$source_container" -- sh -lc "rm -rf '$source_archive' '$source_chunks' && tar --ignore-failed-read --warning=no-file-changed -C /opt/data --exclude='./profiles' --exclude='./tmp' --exclude='./repos' --exclude='./worktrees' --exclude='./workspace' --exclude='./work' --exclude='./review_*' --exclude='./.cache' --exclude='./logs' --exclude='./sessions' --exclude='./home/Projects' --exclude='./home/.cache' --exclude='./home/.npm' --exclude='./home/.corepack' --exclude='./home/.opencode/bin' --exclude='./home/.local/share' --exclude='*/node_modules' --exclude='*/.pnpm' --exclude='*/dist' --exclude='*/build' --exclude='*/.next' --exclude='*/.git/objects/pack' -czf '$source_archive' . && gzip -t '$source_archive' && tar -tzf '$source_archive' >/dev/null && mkdir -p '$source_chunks' && split -b '$chunk_size' '$source_archive' '$source_chunks/part-' && ls -1 '$source_chunks'"
+
+  chunk_list="$(kubectl --context "$source_context" exec -n "$source_namespace" "$source_pod" -c "$source_container" -- sh -lc "ls -1 '$source_chunks'")"
+
+  printf 'Copying chunks from %s to local temp...\n' "$source_name"
+  while IFS= read -r chunk; do
+    [[ -n "$chunk" ]] || continue
+    kubectl --context "$source_context" cp -n "$source_namespace" -c "$source_container" "$source_pod:$source_chunks/$chunk" "$local_dir/$chunk"
+  done <<<"$chunk_list"
+  cat "$local_dir"/part-* > "$local_archive"
+  gzip -t "$local_archive"
+  tar -tzf "$local_archive" >/dev/null
+
+  printf 'Copying verified archive chunks to %s...\n' "$target_name"
+  kubectl --context "$target_context" exec -n "$target_namespace" "$target_pod" -c "$target_container" -- sh -lc "mkdir -p '$target_dir' && rm -rf '$target_chunks' '$target_archive.part' && mkdir -p '$target_chunks'"
+  while IFS= read -r chunk; do
+    [[ -n "$chunk" ]] || continue
+    kubectl --context "$target_context" cp -n "$target_namespace" -c "$target_container" "$local_dir/$chunk" "$target_pod:$target_chunks/$chunk"
+  done <<<"$chunk_list"
+
+  kubectl --context "$target_context" exec -n "$target_namespace" "$target_pod" -c "$target_container" -- sh -lc "cat '$target_chunks'/part-* > '$target_archive.part' && gzip -t '$target_archive.part' && tar -tzf '$target_archive.part' >/dev/null && mv '$target_archive.part' '$target_archive' && chown hermes:hermes '$target_archive' && rm -rf '$target_chunks' && ls -lh '$target_archive'"
+
+  kubectl --context "$source_context" exec -n "$source_namespace" "$source_pod" -c "$source_container" -- sh -lc "rm -rf '$source_archive' '$source_chunks'"
+  rm -rf "$local_dir"
+  printf 'Backed up %s config/state to %s:%s\n' "$source_name" "$target_name" "$target_archive"
+}
+
+exec_agent() {
+  local command_q workdir_q user_q shell_q user_command_q
+
+  command_q="$1"
+  workdir_q="$(quote "$AGENT_WORKDIR")"
+  user_q="$(quote "${AGENT_SHELL_USER:-hermes}")"
+  shell_q="$(quote "$AGENT_SHELL")"
+  user_command_q="$(quote "cd $workdir_q && exec $command_q")"
+  if [[ "${AGENT_BACKEND:-k8s}" = "docker-ssh" ]]; then
+    if [[ -t 0 && -t 1 ]]; then
+      ssh -t "$AGENT_CONTEXT" "docker exec -u $user_q -it '$AGENT_CONTAINER' '$AGENT_SHELL' -lc 'cd $workdir_q && exec $command_q'"
+    else
+      ssh "$AGENT_CONTEXT" "docker exec -u $user_q '$AGENT_CONTAINER' '$AGENT_SHELL' -lc 'cd $workdir_q && exec $command_q'"
+    fi
+  else
+    if [[ -t 0 && -t 1 ]]; then
+      agent_common_kubectl exec -it -n "$AGENT_NAMESPACE" "$AGENT_POD" -c "$AGENT_CONTAINER" -- "$AGENT_SHELL" -lc "HOME=\$(getent passwd $user_q | cut -d: -f6) exec su -m $user_q -s $shell_q -c $user_command_q"
+    else
+      agent_common_kubectl exec -n "$AGENT_NAMESPACE" "$AGENT_POD" -c "$AGENT_CONTAINER" -- "$AGENT_SHELL" -lc "HOME=\$(getent passwd $user_q | cut -d: -f6) exec su -m $user_q -s $shell_q -c $user_command_q"
+    fi
+  fi
+}
+
+build_hermes_command() {
+  local command_q
+
+  command_q="$(quote "$AGENT_HERMES_COMMAND")"
+  if [[ -n "${AGENT_PROFILE:-}" ]]; then
+    command_q+=" -p $(quote "$AGENT_PROFILE")"
+  fi
+  command_q+=" --tui"
+
+  while [[ "$#" -gt 0 ]]; do
+    command_q+=" $(quote "$1")"
+    shift
+  done
+
+  printf '%s' "$command_q"
+}
+
+exec_agent_shell() {
+  local workdir_q agent_q profile_q pod_q namespace_q context_q data_dir_q shell_q user_q hermes_command_q hermes_dir_q
+
+  workdir_q="$(quote "$AGENT_WORKDIR")"
+  agent_q="$(quote "$AGENT_NAME")"
+  profile_q="$(quote "${AGENT_PROFILE:-}")"
+  pod_q="$(quote "$AGENT_POD")"
+  namespace_q="$(quote "$AGENT_NAMESPACE")"
+  context_q="$(quote "$AGENT_CONTEXT")"
+  data_dir_q="$(quote "${AGENT_COPY_DIR:-$(agent_default_copy_dir)}")"
+  shell_q="$(quote "$AGENT_SHELL")"
+  user_q="$(quote "${AGENT_SHELL_USER:-hermes}")"
+  hermes_command_q="$(quote "$AGENT_HERMES_COMMAND")"
+  hermes_dir_q="$(quote "$(dirname "$AGENT_HERMES_COMMAND")")"
+
+  if [[ "${AGENT_BACKEND:-k8s}" = "docker-ssh" ]]; then
+    ssh -t "$AGENT_CONTEXT" "docker exec -u $user_q -it '$AGENT_CONTAINER' '$AGENT_SHELL' -lc 'cd $workdir_q && AGENT_NAME=$agent_q AGENT_PROFILE=$profile_q AGENT_POD=$pod_q AGENT_NAMESPACE=$namespace_q AGENT_CONTEXT=$context_q AGENT_COPY_DIR=$data_dir_q AGENT_HERMES_COMMAND=$hermes_command_q PATH=$hermes_dir_q:\$PATH; export AGENT_NAME AGENT_PROFILE AGENT_POD AGENT_NAMESPACE AGENT_CONTEXT AGENT_COPY_DIR AGENT_HERMES_COMMAND PATH; printf '\''%s\n'\'' '\''+------------------------------------------+'\'' '\''|              AGENT SHELL                 |'\'' '\''+------------------------------------------+'\'' '\'''\'' && printf '\''Agent:     %s\n'\'' \"\$AGENT_NAME\" && if [ -n \"\$AGENT_PROFILE\" ]; then printf '\''Profile:   %s\n'\'' \"\$AGENT_PROFILE\"; fi && printf '\''Container: %s/%s\n'\'' \"\$AGENT_CONTEXT\" \"\$AGENT_POD\" && printf '\''Workdir:   %s\n'\'' \"\$(pwd)\" && printf '\''Data dir:  %s\n\n'\'' \"\$AGENT_COPY_DIR\" && exec $shell_q'"
+  else
+    agent_common_kubectl exec -it -n "$AGENT_NAMESPACE" "$AGENT_POD" -c "$AGENT_CONTAINER" -- "$AGENT_SHELL" -lc "cd $workdir_q && AGENT_NAME=$agent_q AGENT_PROFILE=$profile_q AGENT_POD=$pod_q AGENT_NAMESPACE=$namespace_q AGENT_CONTEXT=$context_q AGENT_COPY_DIR=$data_dir_q AGENT_HERMES_COMMAND=$hermes_command_q PATH=$hermes_dir_q:\$PATH HOME=\$(getent passwd $user_q | cut -d: -f6); export AGENT_NAME AGENT_PROFILE AGENT_POD AGENT_NAMESPACE AGENT_CONTEXT AGENT_COPY_DIR AGENT_HERMES_COMMAND PATH HOME; printf '%s\n' '+------------------------------------------+' '|              AGENT SHELL                 |' '+------------------------------------------+' '' && printf 'Agent:     %s\n' \"\$AGENT_NAME\" && if [ -n \"\$AGENT_PROFILE\" ]; then printf 'Profile:   %s\n' \"\$AGENT_PROFILE\"; fi && printf 'Pod:       %s/%s\n' \"\$AGENT_NAMESPACE\" \"\$AGENT_POD\" && printf 'Context:   %s\n' \"\$AGENT_CONTEXT\" && printf 'User:      %s\n' $user_q && printf 'Workdir:   %s\n' \"\$(pwd)\" && printf 'Data dir:  %s\n\n' \"\$AGENT_COPY_DIR\" && exec su -m $user_q -s $shell_q"
+  fi
+}
+
+if [[ "${1:-}" = "-h" || "${1:-}" = "--help" || "$#" -lt 1 ]]; then
+  show_help
+  exit 0
+fi
+
+command="$1"
+shift
+
+case "$command" in
+  help)
+    show_help
+    ;;
+  list)
+    agent_common_known_names
+    ;;
+  edit)
+    if [[ "$#" -lt 1 || "$#" -gt 2 ]]; then
+      usage >&2
+      exit 2
+    fi
+    REMOTE_EDIT_EDITOR="${REMOTE_EDIT_EDITOR:-code --wait}" "$SCRIPT_DIR/remote-edit" "$@"
+    ;;
+  put)
+    if [[ "$#" -lt 2 || "$#" -gt 3 ]]; then
+      usage >&2
+      exit 2
+    fi
+
+    agent_name="$1"
+    local_path="$2"
+    remote_path="${3:-}"
+
+    if [[ "$agent_name" = "all" ]]; then
+      while IFS= read -r name; do
+        put_file "$name" "$local_path" "$remote_path"
+      done < <(agent_common_primary_names)
+    else
+      put_file "$agent_name" "$local_path" "$remote_path"
+    fi
+    ;;
+  get)
+    if [[ "$#" -lt 2 || "$#" -gt 3 ]]; then
+      usage >&2
+      exit 2
+    fi
+
+    get_file "$1" "$2" "${3:-}"
+    ;;
+  cp)
+    if [[ "$#" -lt 3 || "$#" -gt 4 ]]; then
+      usage >&2
+      exit 2
+    fi
+
+    source_agent="$1"
+    source_path="$2"
+    target_agent="$3"
+    target_path="${4:-}"
+
+    if [[ "$target_agent" = "all" ]]; then
+      while IFS= read -r name; do
+        if [[ "$name" != "$source_agent" ]]; then
+          copy_between_agents "$source_agent" "$source_path" "$name" "$target_path"
+        fi
+      done < <(agent_common_primary_names)
+    else
+      copy_between_agents "$source_agent" "$source_path" "$target_agent" "$target_path"
+    fi
+    ;;
+  backup-config)
+    if [[ "$#" -ne 2 ]]; then
+      usage >&2
+      exit 2
+    fi
+
+    backup_config "$1" "$2"
+    ;;
+  pod|shell|chat)
+    if [[ "$#" -ne 1 ]]; then
+      usage >&2
+      exit 2
+    fi
+
+    agent_common_load "$1"
+    agent_common_discover_pod
+
+    case "$command" in
+      pod) printf '%s/%s container=%s context=%s backend=%s profile=%s\n' "$AGENT_NAMESPACE" "$AGENT_POD" "$AGENT_CONTAINER" "$AGENT_CONTEXT" "${AGENT_BACKEND:-k8s}" "${AGENT_PROFILE:-}" ;;
+      shell) exec_agent_shell ;;
+      chat) exec_agent "$(build_hermes_command chat)" ;;
+    esac
+    ;;
+  hermes)
+    if [[ "$#" -lt 1 ]]; then
+      usage >&2
+      exit 2
+    fi
+
+    agent_common_load "$1"
+    agent_common_discover_pod
+    shift
+
+    if [[ "$#" -eq 0 ]]; then
+      exec_agent "$(build_hermes_command chat)"
+    else
+      exec_agent "$(build_hermes_command "$@")"
+    fi
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac

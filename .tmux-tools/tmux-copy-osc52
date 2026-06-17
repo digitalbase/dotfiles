@@ -1,0 +1,16 @@
+#!/bin/sh
+
+data=$(base64 | tr -d '\n')
+[ -n "$data" ] || exit 0
+
+tty=$(tmux display-message -p '#{pane_tty}' 2>/dev/null)
+
+# Emit both direct OSC52 and tmux passthrough-wrapped OSC52. The wrapped form
+# is what lets clipboard writes escape from an inner tmux through an outer tmux.
+payload=$(printf '\033]52;c;%s\007\033Ptmux;\033\033]52;c;%s\007\033\\' "$data" "$data")
+
+if [ -n "$tty" ] && [ -w "$tty" ]; then
+  printf '%s' "$payload" >"$tty"
+else
+  printf '%s' "$payload"
+fi

@@ -19,6 +19,31 @@ alias mini='mt mini main mac-mini'
 alias smini='st mini main mac-mini'
 alias dokploy='mt dokploy main'
 alias sdokploy='st dokploy main'
+alias redit='remote-edit'
+alias ahelp='agent help'
+alias aedit='agent edit'
+alias aput='agent put'
+alias aget='agent get'
+alias acp='agent cp'
+alias ashell='agent shell'
+alias achat='agent chat'
+alias ahermes='agent hermes'
+
+alacritty_title() {
+  if [ -n "$TMUX" ]; then
+    printf '\033Ptmux;\033\033]2;%s\007\033\\' "$*"
+  else
+    printf '\033]2;%s\007' "$*"
+  fi
+}
+
+hermes() {
+  if [ "$#" -gt 0 ] && agent list | tr ',' '\n' | grep -qx -- "$1"; then
+    agent hermes "$@"
+  else
+    agent hermes marie "$@"
+  fi
+}
 #eval "$(workmux completions zsh)"
 
 export PATH="/opt/homebrew/opt/postgresql@18/bin:$PATH"
@@ -50,6 +75,10 @@ esac
 
 # sonar
 export PATH="/Users/gijs/.local/bin:$PATH"
+case ":$PATH:" in
+  "$HOME/.tmux-tools:"*) ;;
+  *) export PATH="$HOME/.tmux-tools:$PATH" ;;
+esac
 
 # Go binaries installed with `go install`
 export GOPATH="${GOPATH:-$HOME/go}"

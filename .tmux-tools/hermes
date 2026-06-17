@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [[ "$#" -gt 0 ]]; then
+  # Route known agent/profile names through the Marie-aware agent wrapper.
+  # Unknown commands such as `status` or `model` run on Marie's default profile.
+  # shellcheck source=agent-common
+  source "$SCRIPT_DIR/agent-common"
+  if agent_common_load "$1" >/dev/null 2>&1; then
+    exec "$SCRIPT_DIR/agent" hermes "$@"
+  fi
+fi
+
+exec "$SCRIPT_DIR/agent" hermes marie "$@"

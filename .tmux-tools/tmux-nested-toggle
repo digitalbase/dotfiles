@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if command -v tmux >/dev/null 2>&1; then
+  TMUX_BIN="$(command -v tmux)"
+elif [[ -x /opt/homebrew/bin/tmux ]]; then
+  TMUX_BIN="/opt/homebrew/bin/tmux"
+elif [[ -x /usr/local/bin/tmux ]]; then
+  TMUX_BIN="/usr/local/bin/tmux"
+else
+  echo "tmux not found" >&2
+  exit 1
+fi
+
+target_session="$($TMUX_BIN display-message -p '#{session_id}' 2>/dev/null || $TMUX_BIN list-sessions -F '#{session_id}' | while IFS= read -r session_id; do printf '%s' "$session_id"; break; done)"
+
+tmux_get() {
+  "$TMUX_BIN" display-message -p -t "$target_session" "$1"
+}
+
+tmux_set() {
+  "$TMUX_BIN" set-option -t "$target_session" "$@"
+}
+
+tmux_set_global() {
+  "$TMUX_BIN" set-option -g "$@"
+}
+
+tmux_set_all_sessions() {
+  local option="$1" value="$2" session_id
+
+  tmux_set_global "$option" "$value"
+  while IFS= read -r session_id; do
+    [[ -n "$session_id" ]] || continue
+    "$TMUX_BIN" set-option -t "$session_id" "$option" "$value" 2>/dev/null || true
+  done < <("$TMUX_BIN" list-sessions -F '#{session_id}')
+}
+
+apply_color() {
+  local state remote color
+
+  state="$(tmux_get '#{@nested_key_state}')"
+  remote="$(tmux_get '#{@status_is_remote}')"
+
+  if [[ "$remote" = "1" ]]; then
+    [[ "$state" = "IN" ]] && color="#a6da95" || color="#ed8796"
+  else
+    [[ "$state" = "IN" ]] && color="#ed8796" || color="#a6da95"
+  fi
+
+  tmux_set_all_sessions @nested_current_bg "$color"
+  tmux_set_all_sessions window-status-current-format "#[bg=$color,fg=#24273a,bold] #I#{?#{!=:#{window_name},Window},: #W,} #[default]#{?@workmux_status, #{@workmux_status},}"
+  tmux_set_all_sessions window-status-current-style "fg=#24273a,bold"
+  "$TMUX_BIN" refresh-client -S 2>/dev/null || true
+}
+
+set_state() {
+  local next_state="$1" remote
+
+  remote="$(tmux_get '#{@status_is_remote}')"
+
+  if [[ "$remote" != "1" && "$next_state" = "IN" ]]; then
+    tmux_set prefix None
+    tmux_set key-table off
+  else
+    tmux_set prefix C-s
+    tmux_set -u key-table
+  fi
+
+  tmux_set @nested_key_state "$next_state"
+  apply_color
+}
+
+case "${1:-toggle}" in
+  apply)
+    apply_color
+    exit 0
+    ;;
+  in)
+    set_state IN
+    exit 0
+    ;;
+  out)
+    set_state OUT
+    exit 0
+    ;;
+  toggle) ;;
+  *)
+    echo "Usage: tmux-nested-toggle [toggle|in|out|apply]" >&2
+    exit 2
+    ;;
+esac
+
+state="$(tmux_get '#{@nested_key_state}')"
+
+if [[ "$state" = "IN" ]]; then
+  set_state OUT
+  "$TMUX_BIN" send-keys F10
+else
+  set_state IN
+  "$TMUX_BIN" send-keys F11
+  if [[ "$(tmux_get '#{pane_in_mode}')" = "1" ]]; then
+    "$TMUX_BIN" send-keys -X cancel
+  fi
+fi

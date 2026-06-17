@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+
+# name|aliases|context|namespace|selector|pod-pattern|container|workdir|shell|hermes-command|backend|profile
+AGENT_TARGETS=(
+  "coding|codingassistant,coding-assistant,coding-agent|orion|hermes-agent||marie|hermes|/opt/data/profiles/coding|/usr/bin/bash|/opt/hermes/.venv/bin/hermes|k8s|coding"
+  "sales|salesassistant,sales-assistant,sales-agent|orion|hermes-agent||marie|hermes|/opt/data/profiles/sales|/usr/bin/bash|/opt/hermes/.venv/bin/hermes|k8s|sales"
+  "quality|qualityagent,quality-agent,qa,qa-agent|orion|hermes-agent||marie|hermes|/opt/data/profiles/quality|/usr/bin/bash|/opt/hermes/.venv/bin/hermes|k8s|quality"
+  "coordinator|coor,coord,coordinator-agent,coordinating,coordinating-agent|orion|hermes-agent||marie|hermes|/opt/data/profiles/coordinating|/usr/bin/bash|/opt/hermes/.venv/bin/hermes|k8s|coordinating"
+  "data-nerd|data,datanerd,data-dash-nerd|orion|hermes-agent||marie|hermes|/opt/data/profiles/data-nerd|/usr/bin/bash|/opt/hermes/.venv/bin/hermes|k8s|data-nerd"
+  "marketing-research|marketing,market-research,research|orion|hermes-agent||marie|hermes|/opt/data/profiles/marketing-research|/usr/bin/bash|/opt/hermes/.venv/bin/hermes|k8s|marketing-research"
+  "marie|marie-agent,hermes-marie|orion|hermes-agent||marie|hermes|/opt/data|/usr/bin/bash|/opt/hermes/.venv/bin/hermes|k8s|"
+  "personal||homer||||hermes|/opt/data|/usr/bin/bash|/opt/hermes/.venv/bin/hermes|docker-ssh|"
+  "annelies|annelies-agent,hermes-annelies|homer||||hermes-annelies|/opt/data|/usr/bin/bash|/opt/hermes/.venv/bin/hermes|docker-ssh|"
+)
+
+agent_common_upper() {
+  printf '%s' "$1" | tr '[:lower:]-' '[:upper:]_'
+}
+
+agent_common_known_names() {
+  local spec name aliases
+
+  for spec in "${AGENT_TARGETS[@]}"; do
+    IFS='|' read -r name aliases _ <<<"$spec"
+    printf '%s' "$name"
+    if [[ -n "$aliases" ]]; then
+      printf ',%s' "$aliases"
+    fi
+    printf '\n'
+  done
+}
+
+agent_common_primary_names() {
+  local spec name
+
+  for spec in "${AGENT_TARGETS[@]}"; do
+    IFS='|' read -r name _ <<<"$spec"
+    printf '%s\n' "$name"
+  done
+}
+
+agent_common_load() {
+  local requested="$1"
+  local spec name aliases alias env_prefix
+  local context namespace selector pod_pattern container workdir shell hermes_command backend profile
+
+  for spec in "${AGENT_TARGETS[@]}"; do
+    IFS='|' read -r name aliases context namespace selector pod_pattern container workdir shell hermes_command backend profile <<<"$spec"
+
+    if [[ "$requested" != "$name" ]]; then
+      local matched=0
+      IFS=',' read -ra alias_list <<<"$aliases"
+      for alias in "${alias_list[@]}"; do
+        if [[ "$requested" = "$alias" ]]; then
+          matched=1
+          break
+        fi
+      done
+      [[ "$matched" -eq 1 ]] || continue
+    fi
+
+    env_prefix="$(agent_common_upper "$name")"
+    AGENT_NAME="$name"
+    AGENT_CONTEXT="$(eval "printf '%s' \"\${AGENT_${env_prefix}_CONTEXT:-$context}\"")"
+    AGENT_NAMESPACE="$(eval "printf '%s' \"\${AGENT_${env_prefix}_NAMESPACE:-$namespace}\"")"
+    AGENT_SELECTOR="$(eval "printf '%s' \"\${AGENT_${env_prefix}_SELECTOR:-$selector}\"")"
+    AGENT_POD_PATTERN="$(eval "printf '%s' \"\${AGENT_${env_prefix}_POD_PATTERN:-$pod_pattern}\"")"
+    AGENT_CONTAINER="$(eval "printf '%s' \"\${AGENT_${env_prefix}_CONTAINER:-$container}\"")"
+    AGENT_WORKDIR="$(eval "printf '%s' \"\${AGENT_${env_prefix}_WORKDIR:-$workdir}\"")"
+    AGENT_SHELL="$(eval "printf '%s' \"\${AGENT_${env_prefix}_SHELL:-$shell}\"")"
+    AGENT_HERMES_COMMAND="$(eval "printf '%s' \"\${AGENT_${env_prefix}_HERMES_COMMAND:-$hermes_command}\"")"
+    AGENT_BACKEND="$(eval "printf '%s' \"\${AGENT_${env_prefix}_BACKEND:-${backend:-k8s}}\"")"
+    AGENT_PROFILE="$(eval "printf '%s' \"\${AGENT_${env_prefix}_PROFILE:-$profile}\"")"
+    return 0
+  done
+
+  echo "Unknown agent '$requested'. Known agents:" >&2
+  agent_common_known_names >&2
+  return 1
+}
+
+agent_common_kubectl() {
+  if [[ -n "${AGENT_CONTEXT:-}" ]]; then
+    kubectl --context "$AGENT_CONTEXT" "$@"
+  else
+    kubectl "$@"
+  fi
+}
+
+agent_common_discover_pod() {
+  if [[ "${AGENT_BACKEND:-k8s}" = "docker-ssh" ]]; then
+    if ! ssh "$AGENT_CONTEXT" "docker inspect -f '{{.State.Running}}' '$AGENT_CONTAINER'" | grep -qx true; then
+      echo "No running $AGENT_NAME container found on $AGENT_CONTEXT." >&2
+      return 1
+    fi
+
+    AGENT_NAMESPACE="$AGENT_CONTEXT"
+    AGENT_POD="$AGENT_CONTAINER"
+    return 0
+  fi
+
+  AGENT_POD=""
+  local match=""
+  local deadline=$((SECONDS + ${AGENT_DISCOVER_TIMEOUT:-15}))
+  local args=()
+
+  if [[ -n "$AGENT_NAMESPACE" ]]; then
+    args=(-n "$AGENT_NAMESPACE")
+  else
+    args=(--all-namespaces)
+  fi
+
+  if [[ -n "$AGENT_SELECTOR" ]]; then
+    args+=(-l "$AGENT_SELECTOR")
+  fi
+
+  while true; do
+    match="$(
+      agent_common_kubectl get pods \
+        "${args[@]}" \
+        --sort-by=.metadata.creationTimestamp \
+        -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.status.phase}{"\t"}{range .status.containerStatuses[*]}{.name}{":"}{.ready}{","}{end}{"\n"}{end}' \
+        | awk -F '\t' -v pattern="$AGENT_POD_PATTERN" -v container="$AGENT_CONTAINER" '
+            $3 == "Running" && (pattern == "" || index($2, pattern)) && index($4, container ":true") { found=$1 "\t" $2 }
+            END { print found }
+          '
+    )"
+
+    [[ -n "$match" || "$SECONDS" -ge "$deadline" ]] && break
+    sleep 1
+  done
+
+  AGENT_NAMESPACE="${match%%$'\t'*}"
+  AGENT_POD="${match#*$'\t'}"
+
+  if [[ -z "${AGENT_POD:-}" || -z "${AGENT_NAMESPACE:-}" || "$AGENT_NAMESPACE" = "$AGENT_POD" ]]; then
+    echo "No running $AGENT_NAME pod found (context=${AGENT_CONTEXT:-current}, namespace=${AGENT_NAMESPACE:-all}, pattern=${AGENT_POD_PATTERN:-any}, container=$AGENT_CONTAINER)." >&2
+    return 1
+  fi
+}
