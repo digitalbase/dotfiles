@@ -7,6 +7,7 @@ general.import = [
 ]
 
 window.decorations = "Full"
+window.decorations_theme_variant = "Dark"
 window.dimensions = { columns = 120, lines = 34 }
 window.padding = { x = 10, y = 10 }
 
@@ -119,6 +120,61 @@ mods = "Command"
 [[keyboard.bindings]]
 action = "CreateNewWindow"
 key = "N"
+mods = "Command|Shift"
+
+[[keyboard.bindings]]
+action = "SelectTab1"
+key = "F1"
+mods = "Command"
+
+[[keyboard.bindings]]
+action = "SelectTab2"
+key = "F2"
+mods = "Command"
+
+[[keyboard.bindings]]
+action = "SelectTab3"
+key = "F3"
+mods = "Command"
+
+[[keyboard.bindings]]
+action = "SelectTab4"
+key = "F4"
+mods = "Command"
+
+[[keyboard.bindings]]
+action = "SelectTab5"
+key = "F5"
+mods = "Command"
+
+[[keyboard.bindings]]
+action = "SelectTab6"
+key = "F6"
+mods = "Command"
+
+[[keyboard.bindings]]
+action = "SelectTab7"
+key = "F7"
+mods = "Command"
+
+[[keyboard.bindings]]
+action = "SelectTab8"
+key = "F8"
+mods = "Command"
+
+[[keyboard.bindings]]
+action = "SelectLastTab"
+key = "F9"
+mods = "Command"
+
+[[keyboard.bindings]]
+action = "SelectPreviousTab"
+key = "Left"
+mods = "Command|Shift"
+
+[[keyboard.bindings]]
+action = "SelectNextTab"
+key = "Right"
 mods = "Command|Shift"
 
 [[keyboard.bindings]]
