@@ -14,6 +14,7 @@ export PATH="$HOME/scripts:$PATH"
 alias wm='workmux'
 alias wml='workmux-linear'
 alias homer='st homer main'
+alias home='st home main'
 alias shomer='st homer main'
 alias mini='st mini main mac-mini'
 alias smini='st mini main mac-mini'
