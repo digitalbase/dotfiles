@@ -19,12 +19,17 @@ if [ -n "${TMUX:-}" ] && command -v tmux >/dev/null 2>&1; then
 fi
 
 while true; do
-  ssh -tt "$host" "PATH=/opt/homebrew/bin:/usr/local/bin:\$PATH; exec tmux new-session -A -s '$session'"
-  status=$?
+  status=0
+  ssh -tt \
+    -o ServerAliveInterval=3 \
+    -o ServerAliveCountMax=2 \
+    -o TCPKeepAlive=yes \
+    "$host" "PATH=/opt/homebrew/bin:/usr/local/bin:\$PATH; exec tmux new-session -A -s '$session'" || status=$?
 
   # Broken SSH sessions can leave the terminal in an inconsistent state.
   printf '\033c'
   stty sane 2>/dev/null || true
+  reset >/dev/null 2>&1 || true
 
   printf '\nDisconnected from %s/%s; reconnecting in 1s... exit=%s\n' "$host" "$session" "$status" >&2
   sleep 1
