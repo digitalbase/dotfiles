@@ -58,6 +58,7 @@ usage() {
   usage_row "pod <agent>" "${cmd}pod${reset} ${req}<agent>${reset}" "Print the selected running pod"
   usage_row "edit <agent> [file]" "${cmd}edit${reset} ${req}<agent>${reset} ${opt}[file]${reset}" "Edit a remote file through remote-edit"
   usage_row "put <agent> local-path [remote-path]" "${cmd}put${reset} ${req}<agent>${reset} ${path}local-path${reset} ${opt}[remote-path]${reset}" "Copy a local file or directory to an agent"
+  usage_row "put-profile <profile> local-folder" "${cmd}put-profile${reset} ${req}<profile>${reset} ${path}local-folder${reset}" "Copy a folder into /opt/data/profiles/<profile> on Marie"
   usage_row "get <agent> remote-path [local-path]" "${cmd}get${reset} ${req}<agent>${reset} ${path}remote-path${reset} ${opt}[local-path]${reset}" "Copy a file or directory from an agent"
   usage_row "cp <source-agent> source-path <target-agent|all> [target-path]" "${cmd}cp${reset} ${req}<source-agent>${reset} ${path}source-path${reset} ${req}<target-agent|all>${reset} ${opt}[target-path]${reset}" "Copy a file or directory between agents"
   usage_row "backup-config <source-agent> <target-agent>" "${cmd}backup-config${reset} ${req}<source-agent>${reset} ${req}<target-agent>${reset}" "Back up config/state from one Kubernetes agent to another"
@@ -69,6 +70,7 @@ usage() {
   usage_row "ahelp" "${alias}ahelp${reset}" "Show this help"
   usage_row "aedit <agent> [file]" "${alias}aedit${reset} ${req}<agent>${reset} ${opt}[file]${reset}" "Edit a remote file"
   usage_row "aput <agent> local-path [remote-path]" "${alias}aput${reset} ${req}<agent>${reset} ${path}local-path${reset} ${opt}[remote-path]${reset}" "Copy a local file or directory to an agent"
+  usage_row "aputprofile <profile> local-folder" "${alias}aputprofile${reset} ${req}<profile>${reset} ${path}local-folder${reset}" "Copy a folder to a Marie profile"
   usage_row "aget <agent> remote-path [local-path]" "${alias}aget${reset} ${req}<agent>${reset} ${path}remote-path${reset} ${opt}[local-path]${reset}" "Copy from an agent"
   usage_row "acp <source-agent> source-path <target-agent|all> [target-path]" "${alias}acp${reset} ${req}<source-agent>${reset} ${path}source-path${reset} ${req}<target-agent|all>${reset} ${opt}[target-path]${reset}" "Copy between agents"
   usage_row "ashell <agent>" "${alias}ashell${reset} ${req}<agent>${reset}" "Open a normal shell"
@@ -83,6 +85,7 @@ usage() {
 
   printf '\n%b\n' "${bold}Examples:${reset}"
   printf '  %bagent put coding ./config.yaml%b\n' "$dim" "$reset"
+  printf '  %bagent put-profile marketing-research ./profile-folder%b\n' "$dim" "$reset"
   printf '  %bagent get coding config.yaml ./config.yaml%b\n' "$dim" "$reset"
   printf '  %bagent shell coding%b\n' "$dim" "$reset"
   printf '  %bhermes coding%b\n' "$dim" "$reset"
@@ -180,6 +183,37 @@ put_file() {
   chown_agent_path "$remote_path"
 
   printf 'Copied %s to %s:%s (%s)\n' "$local_path" "$AGENT_NAME" "$remote_path" "$AGENT_CONTEXT"
+}
+
+put_profile_folder() {
+  local profile="$1"
+  local local_path="$2"
+  local folder_name target_dir target_path target_dir_q target_path_q owner_q
+
+  if [[ ! -d "$local_path" ]]; then
+    echo "Local folder does not exist: $local_path" >&2
+    return 1
+  fi
+
+  if [[ ! "$profile" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ || "$profile" = *..* ]]; then
+    echo "Invalid profile name: $profile" >&2
+    return 1
+  fi
+
+  agent_common_load marie
+  agent_common_discover_pod
+
+  folder_name="$(basename "$local_path")"
+  target_dir="/opt/data/profiles/$profile"
+  target_path="$target_dir/$folder_name"
+  target_dir_q="$(quote "$target_dir")"
+  target_path_q="$(quote "$target_path")"
+  owner_q="$(quote "$(agent_file_owner)")"
+
+  COPYFILE_DISABLE=1 tar --no-xattrs -C "$(dirname "$local_path")" -cf - "$folder_name" \
+    | agent_common_kubectl exec -i -n "$AGENT_NAMESPACE" "$AGENT_POD" -c "$AGENT_CONTAINER" -- sh -lc "mkdir -p $target_dir_q && rm -rf $target_path_q && tar -C $target_dir_q -xf - && chown -R $owner_q $target_path_q"
+
+  printf 'Copied %s to marie:%s (%s) as %s\n' "$local_path" "$target_path" "$AGENT_CONTEXT" "$(agent_file_owner)"
 }
 
 agent_docker_put() {
@@ -491,6 +525,14 @@ case "$command" in
     else
       put_file "$agent_name" "$local_path" "$remote_path"
     fi
+    ;;
+  put-profile)
+    if [[ "$#" -ne 2 ]]; then
+      usage >&2
+      exit 2
+    fi
+
+    put_profile_folder "$1" "$2"
     ;;
   get)
     if [[ "$#" -lt 2 || "$#" -gt 3 ]]; then
