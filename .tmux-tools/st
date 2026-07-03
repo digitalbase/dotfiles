@@ -14,6 +14,13 @@ esac
 
 trap 'stty sane 2>/dev/null || true; printf "\nexiting\n"; exit 0' INT TERM
 
+cleanup_terminal() {
+  stty sane 2>/dev/null || true
+  # RIS + clear screen. Avoid `reset`, which can print terminfo sequences as text
+  # while the shell prompt is redrawing after a broken SSH session.
+  printf '\033c\033[2J\033[H'
+}
+
 if [ -n "${TMUX:-}" ] && command -v tmux >/dev/null 2>&1; then
   tmux rename-window "$window"
 fi
@@ -27,9 +34,7 @@ while true; do
     "$host" "PATH=/opt/homebrew/bin:/usr/local/bin:\$PATH; exec tmux new-session -A -s '$session'" || status=$?
 
   # Broken SSH sessions can leave the terminal in an inconsistent state.
-  printf '\033c'
-  stty sane 2>/dev/null || true
-  reset >/dev/null 2>&1 || true
+  cleanup_terminal
 
   printf '\nDisconnected from %s/%s; reconnecting in 1s... exit=%s\n' "$host" "$session" "$status" >&2
   sleep 1
