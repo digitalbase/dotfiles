@@ -23,7 +23,6 @@ install_linux_tools() {
   command -v zsh >/dev/null 2>&1 || missing_packages+=(zsh)
   command -v curl >/dev/null 2>&1 || missing_packages+=(curl)
   command -v tmux >/dev/null 2>&1 || missing_packages+=(tmux)
-  command -v mosh >/dev/null 2>&1 || missing_packages+=(mosh)
   command -v fzf >/dev/null 2>&1 || missing_packages+=(fzf)
   command -v zoxide >/dev/null 2>&1 || missing_packages+=(zoxide)
   command -v direnv >/dev/null 2>&1 || missing_packages+=(direnv)

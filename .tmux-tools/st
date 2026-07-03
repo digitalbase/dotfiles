@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+host="${1:-homer}"
+session="${2:-main}"
+window="${3:-$host}"
+
+case "$session" in
+  *[!A-Za-z0-9_.-]*|'')
+    printf 'Invalid tmux session name: %s\n' "$session" >&2
+    exit 2
+    ;;
+esac
+
+trap 'stty sane 2>/dev/null || true; printf "\nexiting\n"; exit 0' INT TERM
+
+if [ -n "${TMUX:-}" ] && command -v tmux >/dev/null 2>&1; then
+  tmux rename-window "$window"
+fi
+
+while true; do
+  ssh -tt "$host" "PATH=/opt/homebrew/bin:/usr/local/bin:\$PATH; exec tmux new-session -A -s '$session'"
+  status=$?
+
+  # Broken SSH sessions can leave the terminal in an inconsistent state.
+  printf '\033c'
+  stty sane 2>/dev/null || true
+
+  printf '\nDisconnected from %s/%s; reconnecting in 1s... exit=%s\n' "$host" "$session" "$status" >&2
+  sleep 1
+done
