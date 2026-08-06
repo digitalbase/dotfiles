@@ -1,0 +1,19 @@
+onboarding = false
+
+[theme]
+name = "catppuccin"
+
+[keys]
+prefix = "ctrl+s"
+previous_tab = "prefix+left"
+next_tab = "prefix+right"
+previous_workspace = "prefix+up"
+next_workspace = "prefix+down"
+toggle_sidebar = "prefix+p"
+split_horizontal = "prefix+h"
+focus_pane_left = ""
+
+[ui]
+agent_panel_sort = "spaces"
+pane_gaps = false
+mouse_capture = true

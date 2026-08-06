@@ -112,6 +112,7 @@ backup_path "$DOTFILES_DIR/AGENTS.md" "$HOME/.config/opencode/AGENTS.md"
 backup_path "$DOTFILES_DIR/.config/starship.toml" "$HOME/.config/starship.toml"
 backup_path "$DOTFILES_DIR/.config/alacritty/alacritty.toml" "$HOME/.config/alacritty/alacritty.toml"
 backup_path "$DOTFILES_DIR/.config/alacritty/catppuccin-macchiato.toml" "$HOME/.config/alacritty/catppuccin-macchiato.toml"
+backup_path "$DOTFILES_DIR/.config/herdr/config.toml" "$HOME/.config/herdr/config.toml"
 
 "$DOTFILES_DIR/install.sh"
 

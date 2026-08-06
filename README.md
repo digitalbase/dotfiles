@@ -8,6 +8,7 @@
 - `.gitconfig`
 - `.config/alacritty/alacritty.toml`
 - `.config/alacritty/catppuccin-macchiato.toml`
+- `.config/herdr/config.toml`
 - `.config/starship.toml`
 - `AGENTS.md`, linked for Codex and OpenCode
 - `.tmux-tools/*` helper scripts
@@ -47,6 +48,7 @@ If a host has local changes and pull refuses, inspect with `git -C <repo> status
 Reload notes:
 
 - Starship reloads when a new shell starts; run `exec zsh` or open a new SSH/tmux pane.
+- Herdr config can be applied to a running server with `herdr server reload-config`.
 - OpenCode config and instructions are loaded at startup; quit and restart OpenCode after instruction/config changes.
 
 ## Notes
