@@ -11,6 +11,7 @@
 - `.config/herdr/config.toml`
 - `.config/starship.toml`
 - `AGENTS.md`, linked for Codex and OpenCode
+- `.agent-skills/*`, linked into the Codex and OpenCode skill directories
 - `.tmux-tools/*` helper scripts
 
 ## Install on a new machine
@@ -50,10 +51,11 @@ Reload notes:
 - Starship reloads when a new shell starts; run `exec zsh` or open a new SSH/tmux pane.
 - Herdr config can be applied to a running server with `herdr server reload-config`.
 - OpenCode config and instructions are loaded at startup; quit and restart OpenCode after instruction/config changes.
+- Codex and OpenCode skills are loaded at startup; restart either app after skill changes.
 
 ## Notes
 
-- This repo tracks terminal and shell configs only.
+- Shared skills live in `.agent-skills`; `install.sh` links each one into both `~/.codex/skills` and `~/.config/opencode/skills` without disturbing unrelated skills. Conflicting skill entries are backed up under `~/.dotfiles-backup/`.
 - `install.sh` copies bundled `.tmux-tools` scripts to `~/.tmux-tools`.
 - Agent shortcuts share one registry in `.tmux-tools/agent-common`; use `ahelp`, `agent list`, `aedit <agent> [file]`, `aput <agent|all> <local> [remote]`, `aputprofile <profile> <local-folder>`, `aget <agent> <remote> [local]`, `acp <source-agent> <source-path> <target-agent|all> [target-path]`, `ashell <agent>`, `achat <agent>`, `ahermes <agent> [args...]`, and `hermes [agent] [args...]`. The `hermes` command always runs in the Marie pod; without an agent name it uses Marie's default profile. Preset Kubernetes agents run through the Marie Hermes pod on context `orion`; their files live under `/opt/data/profiles/<profile>`, and profiled Hermes commands are run as `hermes -p <profile> --tui ...`. `aputprofile` copies a local folder to `/opt/data/profiles/<profile>/<local-folder>` on Marie and enforces `hermes:hermes` ownership. The `personal` agent uses `ssh homer` plus `docker exec hermes`. Add new agents by appending one row to `AGENT_TARGETS`.
 - On apt-based Linux hosts, `bootstrap-host.sh` installs the required terminal tools: `git`, `ssh`, `zsh`, `curl`, `tmux`, `fzf`, `zoxide`, `direnv`, `ripgrep`, `tree`, `fd`, `bat`, `gh`, and `starship`.

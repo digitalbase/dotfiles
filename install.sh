@@ -3,12 +3,34 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TMUX_TOOLS_DIR="$HOME/.tmux-tools"
+SHARED_SKILLS_DIR="$REPO_DIR/.agent-skills"
+SKILLS_BACKUP_DIR="$HOME/.dotfiles-backup/$(date +%Y%m%d%H%M%S)-skills"
 
 mkdir -p "$HOME/.config/alacritty"
 mkdir -p "$HOME/.config/herdr"
 mkdir -p "$HOME/.config"
 mkdir -p "$HOME/.codex"
 mkdir -p "$HOME/.config/opencode"
+mkdir -p "$HOME/.codex/skills"
+mkdir -p "$HOME/.config/opencode/skills"
+
+link_skill() {
+  local source="$1"
+  local target="$2"
+
+  if [ -L "$target" ] && [ "$(readlink "$target")" = "$source" ]; then
+    return 0
+  fi
+
+  if [ -e "$target" ] || [ -L "$target" ]; then
+    local relative_target="${target#$HOME/}"
+    mkdir -p "$SKILLS_BACKUP_DIR/$(dirname "$relative_target")"
+    mv "$target" "$SKILLS_BACKUP_DIR/$relative_target"
+    echo "Backed up $target to $SKILLS_BACKUP_DIR/$relative_target"
+  fi
+
+  ln -s "$source" "$target"
+}
 
 ln -sf "$REPO_DIR/.zshrc" "$HOME/.zshrc"
 ln -sf "$REPO_DIR/.zprofile" "$HOME/.zprofile"
@@ -21,6 +43,13 @@ ln -sf "$REPO_DIR/.config/herdr/config.toml" "$HOME/.config/herdr/config.toml"
 ln -sf "$REPO_DIR/.config/starship.toml" "$HOME/.config/starship.toml"
 ln -sf "$REPO_DIR/AGENTS.md" "$HOME/.codex/AGENTS.md"
 ln -sf "$REPO_DIR/AGENTS.md" "$HOME/.config/opencode/AGENTS.md"
+
+for skill_dir in "$SHARED_SKILLS_DIR"/*; do
+  [ -d "$skill_dir" ] || continue
+  skill_name="$(basename "$skill_dir")"
+  link_skill "$skill_dir" "$HOME/.codex/skills/$skill_name"
+  link_skill "$skill_dir" "$HOME/.config/opencode/skills/$skill_name"
+done
 
 mkdir -p "$TMUX_TOOLS_DIR"
 cp -f "$REPO_DIR/.tmux-tools/code-wait" "$TMUX_TOOLS_DIR/code-wait"
@@ -48,4 +77,5 @@ chmod +x "$TMUX_TOOLS_DIR/tmux-zoxide-session"
 chmod +x "$TMUX_TOOLS_DIR/tmux-zoxide-window"
 
 echo "Dotfiles linked."
+echo "Shared agent skills linked for Codex and OpenCode."
 echo "tmux-tools scripts copied to $TMUX_TOOLS_DIR"

@@ -1,0 +1,4 @@
+interface:
+  display_name: "File PR"
+  short_description: "Open a concise, review-ready pull request"
+  default_prompt: "Use $file-pr to open a concise pull request for my current branch."

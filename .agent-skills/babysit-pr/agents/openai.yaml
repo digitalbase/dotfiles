@@ -1,0 +1,4 @@
+interface:
+  display_name: "Babysit PR"
+  short_description: "Monitor a pull request through green checks"
+  default_prompt: "Use $babysit-pr to monitor this pull request until it is ready."
