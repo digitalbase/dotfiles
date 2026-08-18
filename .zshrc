@@ -93,11 +93,12 @@ esac
 # Usage: k8ss [pod-name]
 k8ss() {
   local pod="$1"
+  local context="pro"
   local container="worker-mem-intensive"
   local workdir="/source"
 
   if [ -z "$pod" ]; then
-    pod="$(kubectl -n production get pod -l job_queue=mem_intensive -o jsonpath='{.items[0].metadata.name}')"
+    pod="$(kubectl --context "$context" -n production get pod -l job_queue=mem_intensive -o jsonpath='{.items[0].metadata.name}')"
   fi
 
   if [ -z "$pod" ]; then
@@ -105,7 +106,7 @@ k8ss() {
     return 1
   fi
 
-  kubectl -n production exec -it "$pod" -c "$container" -- /usr/bin/bash -lc "cd '$workdir' && exec /usr/bin/bash"
+  kubectl --context "$context" -n production exec -it "$pod" -c "$container" -- /usr/bin/bash -lc "cd '$workdir' && exec /usr/bin/bash"
 }
 if command -v direnv >/dev/null 2>&1; then
   eval "$(direnv hook zsh)"
