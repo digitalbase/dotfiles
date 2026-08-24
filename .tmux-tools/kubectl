@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+vault="${KUBECTL_OP_VAULT:-Founder}"
+document="${KUBECTL_OP_DOCUMENT:-pwr2lozryxainvn22jrao7gja4}"
+wrapper_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+kubectl_path=""
+
+IFS=: read -r -a path_entries <<< "$PATH"
+for path_entry in "${path_entries[@]}"; do
+  [ -n "$path_entry" ] || path_entry="."
+  [ "$(cd "$path_entry" 2>/dev/null && pwd || true)" = "$wrapper_dir" ] && continue
+  if [ -x "$path_entry/kubectl" ]; then
+    kubectl_path="$path_entry/kubectl"
+    break
+  fi
+done
+
+if [ -z "$kubectl_path" ]; then
+  echo "kubectl executable not found" >&2
+  exit 127
+fi
+
+if ! command -v op >/dev/null 2>&1; then
+  echo "1Password CLI (op) is required" >&2
+  exit 127
+fi
+
+config_dir="$(mktemp -d "${TMPDIR:-/tmp}/kubectl-op.XXXXXX")"
+cleanup() {
+  rm -f "$config_dir/config"
+  rmdir "$config_dir" 2>/dev/null || true
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+op document get "$document" --vault "$vault" --out-file "$config_dir/config" --file-mode 0600 >/dev/null
+KUBECONFIG="$config_dir/config" "$kubectl_path" "$@"
